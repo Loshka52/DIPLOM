@@ -32,6 +32,51 @@ def get_conn():
         raise
 
 
+from contextlib import contextmanager
+
+@contextmanager
+def safe_conn():
+    """Контекстный менеджер для безопасной работы с БД.
+    Автоматически закрывает соединение даже при ошибке.
+    Использование:
+        with safe_conn() as conn:
+            conn.execute(...)
+            conn.commit()
+    """
+    conn = None
+    try:
+        conn = get_conn()
+        yield conn
+    except sqlite3.Error as e:
+        logger.error(f"[DB] Ошибка БД: {e}")
+        raise
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ==========================================
+# ОГРАНИЧЕНИЯ ДЛИНЫ ПОЛЕЙ (защита от переполнения)
+# ==========================================
+
+DB_MAX_NAME = 200
+DB_MAX_TEXT = 2000
+DB_MAX_PHONE = 30
+DB_MAX_ADDRESS = 500
+DB_MAX_COMMENT = 500
+
+
+def _truncate(value, max_len):
+    """Обрезать строку до максимальной длины"""
+    if isinstance(value, str) and len(value) > max_len:
+        logger.warning(f"[DB] Строка обрезана: {len(value)} → {max_len} символов")
+        return value[:max_len]
+    return value
+
+
 # ==========================================
 # ВАЛИДАЦИЯ ДАННЫХ
 # ==========================================
@@ -274,13 +319,15 @@ def seed_initial_data():
 
 def register_user(user_id, username, full_name, phone):
     try:
-        conn = get_conn()
-        conn.execute(
-            "INSERT OR REPLACE INTO users (user_id, username, full_name, phone, role) VALUES (?, ?, ?, ?, 'client')",
-            (user_id, username, full_name, phone)
-        )
-        conn.commit()
-        conn.close()
+        full_name = _truncate(full_name, DB_MAX_NAME)
+        phone = _truncate(phone, DB_MAX_PHONE)
+        username = _truncate(username, 100) if username else None
+        with safe_conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO users (user_id, username, full_name, phone, role) VALUES (?, ?, ?, ?, 'client')",
+                (user_id, username, full_name, phone)
+            )
+            conn.commit()
         logger.info(f"[USER] Зарегистрирован: {full_name} (ID: {user_id})")
     except sqlite3.Error as e:
         logger.error(f"[USER] Ошибка регистрации {user_id}: {e}")
@@ -288,9 +335,8 @@ def register_user(user_id, username, full_name, phone):
 
 def get_user(user_id):
     try:
-        conn = get_conn()
-        row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        conn.close()
+        with safe_conn() as conn:
+            row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return row
     except sqlite3.Error as e:
         logger.error(f"[USER] Ошибка получения пользователя {user_id}: {e}")
@@ -299,9 +345,8 @@ def get_user(user_id):
 
 def get_user_role(user_id):
     try:
-        conn = get_conn()
-        row = conn.execute("SELECT role FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        conn.close()
+        with safe_conn() as conn:
+            row = conn.execute("SELECT role FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return row[0] if row else 'guest'
     except sqlite3.Error as e:
         logger.error(f"[USER] Ошибка получения роли {user_id}: {e}")
@@ -310,16 +355,16 @@ def get_user_role(user_id):
 
 def set_user_role_and_info(user_id, role, full_name, photo_id):
     try:
-        conn = get_conn()
-        existing = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        if existing:
-            conn.execute("UPDATE users SET role=?, full_name=?, photo_id=? WHERE user_id=?",
-                         (role, full_name, photo_id, user_id))
-        else:
-            conn.execute("INSERT INTO users (user_id, role, full_name, photo_id) VALUES (?, ?, ?, ?)",
-                         (user_id, role, full_name, photo_id))
-        conn.commit()
-        conn.close()
+        full_name = _truncate(full_name, DB_MAX_NAME)
+        with safe_conn() as conn:
+            existing = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)).fetchone()
+            if existing:
+                conn.execute("UPDATE users SET role=?, full_name=?, photo_id=? WHERE user_id=?",
+                             (role, full_name, photo_id, user_id))
+            else:
+                conn.execute("INSERT INTO users (user_id, role, full_name, photo_id) VALUES (?, ?, ?, ?)",
+                             (user_id, role, full_name, photo_id))
+            conn.commit()
     except sqlite3.Error as e:
         logger.error(f"[USER] Ошибка обновления роли {user_id}: {e}")
 
@@ -352,13 +397,14 @@ def get_managers_ids():
 
 def create_staff_account(login, password, role, full_name, photo_id=None):
     try:
-        conn = get_conn()
-        conn.execute(
-            "INSERT OR REPLACE INTO staff_credentials (login, password, role, full_name, photo_id) VALUES (?, ?, ?, ?, ?)",
-            (login, password, role, full_name, photo_id)
-        )
-        conn.commit()
-        conn.close()
+        login = _truncate(login, 50)
+        full_name = _truncate(full_name, DB_MAX_NAME)
+        with safe_conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO staff_credentials (login, password, role, full_name, photo_id) VALUES (?, ?, ?, ?, ?)",
+                (login, password, role, full_name, photo_id)
+            )
+            conn.commit()
         logger.info(f"[STAFF] Создан аккаунт: {full_name} ({role})")
     except sqlite3.Error as e:
         logger.error(f"[STAFF] Ошибка создания аккаунта: {e}")
@@ -366,12 +412,11 @@ def create_staff_account(login, password, role, full_name, photo_id=None):
 
 def check_staff_login(login, password):
     try:
-        conn = get_conn()
-        row = conn.execute(
-            "SELECT role, full_name, photo_id FROM staff_credentials WHERE login=? AND password=?",
-            (login, password)
-        ).fetchone()
-        conn.close()
+        with safe_conn() as conn:
+            row = conn.execute(
+                "SELECT role, full_name, photo_id FROM staff_credentials WHERE login=? AND password=?",
+                (login, password)
+            ).fetchone()
         if row:
             logger.info(f"[AUTH] Успешный вход: {row[1]} ({row[0]})")
         else:
@@ -680,33 +725,30 @@ def reserve_stock(items):
     Возвращает (success, error_message)
     """
     try:
-        conn = get_conn()
-        c = conn.cursor()
+        with safe_conn() as conn:
+            c = conn.cursor()
 
-        for item in items:
-            pid = item.get('id')
-            qty = item.get('quantity', 1)
-            if pid:
-                row = c.execute("SELECT name, stock_quantity FROM products WHERE id=?", (pid,)).fetchone()
-                if not row:
-                    conn.close()
-                    return False, f"Товар #{pid} не найден"
-                if row[1] < qty:
-                    conn.close()
-                    return False, f"Недостаточно товара «{row[0]}» на складе (остаток: {row[1]}, запрошено: {qty})"
+            for item in items:
+                pid = item.get('id')
+                qty = item.get('quantity', 1)
+                if pid:
+                    row = c.execute("SELECT name, stock_quantity FROM products WHERE id=?", (pid,)).fetchone()
+                    if not row:
+                        return False, f"Товар #{pid} не найден"
+                    if row[1] < qty:
+                        return False, f"Недостаточно товара «{row[0]}» на складе (остаток: {row[1]}, запрошено: {qty})"
 
-        for item in items:
-            pid = item.get('id')
-            qty = item.get('quantity', 1)
-            if pid:
-                c.execute(
-                    "UPDATE products SET stock_quantity = stock_quantity - ? WHERE id=? AND stock_quantity >= ?",
-                    (qty, pid, qty)
-                )
-                logger.info(f"[STOCK] Списание: товар #{pid}, кол-во: {qty}")
+            for item in items:
+                pid = item.get('id')
+                qty = item.get('quantity', 1)
+                if pid:
+                    c.execute(
+                        "UPDATE products SET stock_quantity = stock_quantity - ? WHERE id=? AND stock_quantity >= ?",
+                        (qty, pid, qty)
+                    )
+                    logger.info(f"[STOCK] Списание: товар #{pid}, кол-во: {qty}")
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         return True, ""
     except sqlite3.Error as e:
         logger.error(f"[STOCK] Ошибка списания: {e}")
@@ -720,32 +762,46 @@ def reserve_stock(items):
 def create_order(user_id, items, total, customer_name, customer_phone, customer_address, comment=''):
     """Создать заказ с резервированием товаров."""
     try:
+        # Валидация входных данных
+        customer_name = _truncate(customer_name, DB_MAX_NAME)
+        customer_phone = _truncate(customer_phone, DB_MAX_PHONE)
+        customer_address = _truncate(customer_address, DB_MAX_ADDRESS)
+        comment = _truncate(comment, DB_MAX_COMMENT)
+
+        if not isinstance(total, (int, float)) or total <= 0:
+            return None, "Некорректная сумма заказа"
+        if not items or len(items) > 50:
+            return None, "Некорректное количество товаров"
+
         success, error = reserve_stock(items)
         if not success:
             logger.warning(f"[ORDER] Отказ в создании заказа: {error}")
             return None, error
 
-        conn = get_conn()
-        c = conn.cursor()
-        c.execute(
-            """INSERT INTO orders (user_id, total, customer_name, customer_phone, customer_address, comment)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (user_id, total, customer_name, customer_phone, customer_address, comment)
-        )
-        order_id = c.lastrowid
-        for item in items:
+        with safe_conn() as conn:
+            c = conn.cursor()
             c.execute(
-                """INSERT INTO order_items (order_id, product_id, product_name, price, quantity)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (order_id, item.get('id'), item['name'], item['price'], item['quantity'])
+                """INSERT INTO orders (user_id, total, customer_name, customer_phone, customer_address, comment)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (user_id, total, customer_name, customer_phone, customer_address, comment)
             )
-        conn.commit()
-        conn.close()
+            order_id = c.lastrowid
+            for item in items:
+                item_name = _truncate(str(item.get('name', '')), DB_MAX_NAME)
+                c.execute(
+                    """INSERT INTO order_items (order_id, product_id, product_name, price, quantity)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (order_id, item.get('id'), item_name, item['price'], item['quantity'])
+                )
+            conn.commit()
         logger.info(f"[ORDER] ✅ Заказ #{order_id} создан | Клиент: {customer_name} | Сумма: {total:,.0f}₽")
         return order_id, ""
     except sqlite3.Error as e:
         logger.error(f"[ORDER] Ошибка создания заказа: {e}")
         return None, f"Ошибка базы данных: {e}"
+    except Exception as e:
+        logger.error(f"[ORDER] Непредвиденная ошибка создания заказа: {e}")
+        return None, "Внутренняя ошибка сервера"
 
 
 def get_order(order_id):
@@ -1084,28 +1140,25 @@ def delete_product_photo_by_id(photo_db_id):
 def cancel_order(order_id):
     """Отменить заказ и вернуть товары на склад. Возвращает (success, error_message)"""
     try:
-        conn = get_conn()
-        c = conn.cursor()
+        with safe_conn() as conn:
+            c = conn.cursor()
 
-        order = c.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
-        if not order:
-            conn.close()
-            return False, "Заказ не найден"
+            order = c.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
+            if not order:
+                return False, "Заказ не найден"
 
-        if order[0] in ('Отгружен', 'Отменён'):
-            conn.close()
-            return False, f"Нельзя отменить заказ в статусе «{order[0]}»"
+            if order[0] in ('Отгружен', 'Отменён'):
+                return False, f"Нельзя отменить заказ в статусе «{order[0]}»"
 
-        # Возвращаем товары на склад
-        items = c.execute("SELECT product_id, quantity FROM order_items WHERE order_id=?", (order_id,)).fetchall()
-        for item in items:
-            if item[0]:
-                c.execute("UPDATE products SET stock_quantity = stock_quantity + ? WHERE id=?", (item[1], item[0]))
-                logger.info(f"[STOCK] Возврат на склад: товар #{item[0]}, кол-во: +{item[1]}")
+            # Возвращаем товары на склад
+            items = c.execute("SELECT product_id, quantity FROM order_items WHERE order_id=?", (order_id,)).fetchall()
+            for item in items:
+                if item[0]:
+                    c.execute("UPDATE products SET stock_quantity = stock_quantity + ? WHERE id=?", (item[1], item[0]))
+                    logger.info(f"[STOCK] Возврат на склад: товар #{item[0]}, кол-во: +{item[1]}")
 
-        c.execute("UPDATE orders SET status='Отменён', updated_at=datetime('now','localtime') WHERE id=?", (order_id,))
-        conn.commit()
-        conn.close()
+            c.execute("UPDATE orders SET status='Отменён', updated_at=datetime('now','localtime') WHERE id=?", (order_id,))
+            conn.commit()
         logger.info(f"[ORDER] ❌ Заказ #{order_id} отменён, товары возвращены на склад")
         return True, ""
     except sqlite3.Error as e:

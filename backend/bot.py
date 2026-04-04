@@ -107,6 +107,29 @@ def is_throttled(user_id: int) -> bool:
 
 
 # ==========================================
+# ЗАЩИТА ОТ ПОЛОМОК — ЛИМИТЫ И САНИТИЗАЦИЯ
+# ==========================================
+
+MAX_TEXT_LENGTH = 1000        # Максимум символов в текстовом вводе
+MAX_NAME_LENGTH = 200         # Максимум для имён/названий
+MAX_DESCRIPTION_LENGTH = 2000 # Максимум для описаний
+MAX_ADDRESS_LENGTH = 500      # Максимум для адреса
+MAX_COMMENT_LENGTH = 500      # Максимум для комментария
+MAX_PHOTOS_PER_PRODUCT = 10   # Максимум фото на один товар
+MAX_BROADCAST_LENGTH = 3000   # Максимум текста рассылки
+MAX_CART_ITEMS = 50           # Максимум товаров в одном заказе
+
+
+def safe_markdown(text: str) -> str:
+    """Экранирование спецсимволов Markdown v1 чтобы бот не падал от пользовательского текста"""
+    if not text:
+        return ""
+    for char in ['*', '_', '`', '[']:
+        text = text.replace(char, '')
+    return text
+
+
+# ==========================================
 # НАДЁЖНЫЕ УВЕДОМЛЕНИЯ (с retry)
 # ==========================================
 
@@ -315,7 +338,10 @@ async def guest_login(message: types.Message, state: FSMContext):
 @dp.message(ClientReg.name)
 async def reg_name(message: types.Message, state: FSMContext):
     try:
-        fio = message.text.strip()
+        if not message.text:
+            await message.answer("❌ Отправьте ФИО *текстом*, а не фото/стикер.", parse_mode="Markdown")
+            return
+        fio = message.text.strip()[:MAX_NAME_LENGTH]
         is_valid, error = validate_fio(fio)
 
         if not is_valid:
@@ -354,7 +380,10 @@ async def reg_phone(message: types.Message, state: FSMContext):
         if message.contact:
             phone = message.contact.phone_number
         else:
-            phone = message.text.strip()
+            if not message.text:
+                await message.answer("❌ Введите номер телефона текстом или нажмите «📱 Отправить контакт».")
+                return
+            phone = message.text.strip()[:30]
             is_valid, error = validate_phone(phone)
 
             if not is_valid:
@@ -418,7 +447,10 @@ async def staff_login_step1(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(StaffLogin.login)
 async def staff_login_step2(message: types.Message, state: FSMContext):
-    await state.update_data(login=message.text.strip())
+    if not message.text:
+        await message.answer("❌ Введите логин текстом.")
+        return
+    await state.update_data(login=message.text.strip()[:50])
     await state.set_state(StaffLogin.password)
     await message.answer("🔑 Введите пароль:")
 
@@ -426,8 +458,11 @@ async def staff_login_step2(message: types.Message, state: FSMContext):
 @dp.message(StaffLogin.password)
 async def staff_login_step3(message: types.Message, state: FSMContext):
     try:
+        if not message.text:
+            await message.answer("❌ Введите пароль текстом.")
+            return
         data = await state.get_data()
-        cred = check_staff_login(data['login'], message.text)
+        cred = check_staff_login(data['login'], message.text.strip()[:100])
         if cred:
             real_role, full_name, photo_id = cred
             set_user_role_and_info(message.from_user.id, real_role, full_name, photo_id)
@@ -591,7 +626,10 @@ async def add_staff_start(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(CreateStaff.login)
 async def add_staff_login(message: types.Message, state: FSMContext):
-    login = message.text.strip()
+    if not message.text:
+        await message.answer("❌ Введите логин текстом.")
+        return
+    login = message.text.strip()[:50]
     if len(login) < 3:
         await message.answer("❌ Логин должен содержать минимум 3 символа. Попробуйте ещё:")
         return
@@ -602,7 +640,10 @@ async def add_staff_login(message: types.Message, state: FSMContext):
 
 @dp.message(CreateStaff.password)
 async def add_staff_password(message: types.Message, state: FSMContext):
-    pwd = message.text.strip()
+    if not message.text:
+        await message.answer("❌ Введите пароль текстом.")
+        return
+    pwd = message.text.strip()[:100]
     if len(pwd) < 4:
         await message.answer("❌ Пароль должен содержать минимум 4 символа. Попробуйте ещё:")
         return
@@ -613,7 +654,10 @@ async def add_staff_password(message: types.Message, state: FSMContext):
 
 @dp.message(CreateStaff.full_name)
 async def add_staff_name(message: types.Message, state: FSMContext):
-    fio = message.text.strip()
+    if not message.text:
+        await message.answer("❌ Введите ФИО текстом.")
+        return
+    fio = message.text.strip()[:MAX_NAME_LENGTH]
     is_valid, error = validate_fio(fio)
     if not is_valid:
         await message.answer(f"❌ *Ошибка:* {error}\n\nВведите корректное ФИО:", parse_mode="Markdown")
@@ -631,7 +675,10 @@ async def add_staff_name(message: types.Message, state: FSMContext):
 
 @dp.message(CreateStaff.role)
 async def add_staff_role(message: types.Message, state: FSMContext):
-    role = message.text.strip().lower()
+    if not message.text:
+        await message.answer("❌ Введите роль текстом: `manager`, `consultant` или `admin`", parse_mode="Markdown")
+        return
+    role = message.text.strip().lower()[:20]
     if role not in ('manager', 'consultant', 'admin'):
         await message.answer("❌ Укажите одну из ролей: `manager`, `consultant`, `admin`", parse_mode="Markdown")
         return
@@ -840,7 +887,10 @@ async def add_category_start(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(NewCategory.name)
 async def add_category_finish(message: types.Message, state: FSMContext):
-    name = message.text.strip()
+    if not message.text:
+        await message.answer("❌ Введите название категории текстом.")
+        return
+    name = message.text.strip()[:100]
     if len(name) < 2:
         await message.answer("❌ Название слишком короткое. Минимум 2 символа:")
         return
@@ -862,7 +912,10 @@ async def add_product_start(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(NewProduct.name)
 async def add_product_name(message: types.Message, state: FSMContext):
-    name = message.text.strip()
+    if not message.text:
+        await message.answer("❌ Введите название товара текстом.")
+        return
+    name = message.text.strip()[:MAX_NAME_LENGTH]
     if len(name) < 3:
         await message.answer("❌ Название слишком короткое. Минимум 3 символа:")
         return
@@ -873,15 +926,21 @@ async def add_product_name(message: types.Message, state: FSMContext):
 
 @dp.message(NewProduct.description)
 async def add_product_desc(message: types.Message, state: FSMContext):
-    await state.update_data(description=message.text.strip())
+    if not message.text:
+        await message.answer("❌ Введите описание товара текстом.")
+        return
+    await state.update_data(description=message.text.strip()[:MAX_DESCRIPTION_LENGTH])
     await state.set_state(NewProduct.price)
     await message.answer("3️⃣ Введите *цену* (число, в рублях):", parse_mode="Markdown")
 
 
 @dp.message(NewProduct.price)
 async def add_product_price(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введите цену числом.")
+        return
     try:
-        price = float(message.text.replace(',', '.').replace(' ', ''))
+        price = float(message.text.replace(',', '.').replace(' ', '')[:20])
         if price <= 0:
             raise ValueError("Цена должна быть положительной")
     except ValueError:
@@ -894,8 +953,11 @@ async def add_product_price(message: types.Message, state: FSMContext):
 
 @dp.message(NewProduct.stock)
 async def add_product_stock(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введите количество числом.")
+        return
     try:
-        stock = int(message.text.strip())
+        stock = int(message.text.strip()[:10])
         if stock < 0:
             raise ValueError("Кол-во не может быть отрицательным")
     except ValueError:
@@ -1004,10 +1066,13 @@ async def edit_product_start(callback: types.CallbackQuery, state: FSMContext):
 async def edit_product_finish(message: types.Message, state: FSMContext):
     """Применение нового значения для товара"""
     try:
+        if not message.text:
+            await message.answer("❌ Введите значение текстом.")
+            return
         data = await state.get_data()
         pid = data['product_id']
         field = data['field']
-        value = message.text.strip()
+        value = message.text.strip()[:MAX_DESCRIPTION_LENGTH]
 
         # Валидация в зависимости от поля
         if field == 'price':
@@ -1093,9 +1158,20 @@ async def add_photo_start(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AddPhotos.waiting_photos, F.photo)
 async def receive_product_photo(message: types.Message, state: FSMContext):
-    """Приём одного фото для товара"""
+    """Приём одного фото для товара (с лимитом)"""
     data = await state.get_data()
     pid = data['product_id']
+
+    # Проверяем лимит фотографий
+    existing = get_product_photos(pid)
+    if len(existing) >= MAX_PHOTOS_PER_PRODUCT:
+        await message.answer(
+            f"⚠️ Достигнут лимит — максимум *{MAX_PHOTOS_PER_PRODUCT} фото* на товар.\n"
+            f"Нажмите «✅ Завершить загрузку» или удалите старые фото.",
+            parse_mode="Markdown"
+        )
+        return
+
     file_id = message.photo[-1].file_id
 
     # Сохраняем file_id в таблицу product_photos
@@ -1237,9 +1313,19 @@ async def handle_webapp_order(message: types.Message):
             await message.answer("⚠️ Корзина пуста. Добавьте товары!")
             return
 
-        name = customer.get('name', '').strip()
-        phone = customer.get('phone', '').strip()
-        address = customer.get('address', '').strip()
+        # Защита от слишком большого заказа
+        if len(items) > MAX_CART_ITEMS:
+            await message.answer(f"⚠️ Слишком много товаров. Максимум {MAX_CART_ITEMS} позиций в одном заказе.")
+            return
+
+        # Защита от некорректной суммы
+        if not isinstance(total, (int, float)) or total <= 0 or total > 100_000_000:
+            await message.answer("⚠️ Некорректная сумма заказа.")
+            return
+
+        name = customer.get('name', '').strip()[:MAX_NAME_LENGTH]
+        phone = customer.get('phone', '').strip()[:30]
+        address = customer.get('address', '').strip()[:MAX_ADDRESS_LENGTH]
 
         is_valid_name, name_error = validate_fio(name)
         if not is_valid_name:
@@ -1268,7 +1354,7 @@ async def handle_webapp_order(message: types.Message):
             customer_name=name,
             customer_phone=formatted_phone,
             customer_address=address,
-            comment=customer.get('comment', '')
+            comment=customer.get('comment', '')[:MAX_COMMENT_LENGTH]
         )
 
         if not order_id:
