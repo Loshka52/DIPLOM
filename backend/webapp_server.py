@@ -64,7 +64,7 @@ for path in POSSIBLE_DIST_PATHS:
         DIST_DIR = resolved
         break
 
-PORT = int(os.getenv('PORT', '80'))
+PORT = int(os.getenv('PORT', '8080'))
 
 app = FastAPI(title="Мебельный Завод API")
 

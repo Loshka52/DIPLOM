@@ -28,6 +28,6 @@ ENV PYTHONUNBUFFERED=1
 ENV DB_PATH=/data/furniture_bot.db
 ENV IMAGES_DIR=/data/images
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/app.conf"]
