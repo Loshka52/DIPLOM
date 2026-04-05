@@ -88,7 +88,7 @@ async def add_bypass_header(request: Request, call_next):
 # ==========================================
 
 @app.get("/api/products")
-async def api_products(category: str = None):
+def api_products(category: str = None):
     try:
         products = get_all_products()
         if category:
@@ -116,7 +116,7 @@ async def api_products(category: str = None):
         return JSONResponse(content=[], status_code=200)
 
 @app.get("/api/categories")
-async def api_categories():
+def api_categories():
     try:
         return JSONResponse(content=get_categories())
     except Exception as e:
@@ -124,7 +124,7 @@ async def api_categories():
         return JSONResponse(content=[], status_code=200)
 
 @app.get("/api/my-orders")
-async def api_my_orders(user_id: int = 0):
+def api_my_orders(user_id: int = 0):
     try:
         if not user_id or user_id <= 0:
             return JSONResponse(content=[])
@@ -242,4 +242,4 @@ if __name__ == "__main__":
         print(f"❌ Ошибка инициализации БД: {e}")
 
     print(f"📦 Папка фронтенда: {DIST_DIR if DIST_DIR else '❌ НЕ НАЙДЕНА'}")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT, proxy_headers=True, forwarded_allow_ips="*")

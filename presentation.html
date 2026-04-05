@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Презентация проекта: Мебельный Завод</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --accent: #10b981;
+            --bg-dark: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b, #0f172a);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.07) 0%, transparent 50%);
+            animation: rotate 20s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .card h3 {
+            color: var(--accent);
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        .features-list li {
+            margin-bottom: 0.75rem;
+            position: relative;
+            padding-left: 1.5rem;
+            color: #cbd5e1;
+        }
+
+        .features-list li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .testing-section {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 16px;
+            padding: 2.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .testing-section h2 {
+            margin-bottom: 2rem;
+            color: #fff;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .scenario {
+            margin-bottom: 2.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .scenario-manager {
+            border-left-color: #f59e0b;
+        }
+
+        .scenario-admin {
+            border-left-color: #ec4899;
+        }
+
+        .scenario:last-child {
+            margin-bottom: 0;
+        }
+
+        .scenario-title {
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: #fff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-list {
+            counter-reset: custom-counter;
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .step-list li {
+            position: relative;
+            margin-bottom: 1.2rem;
+            padding-left: 2.5rem;
+            color: #cbd5e1;
+        }
+
+        .step-list li::before {
+            counter-increment: custom-counter;
+            content: counter(custom-counter);
+            position: absolute;
+            left: 0;
+            top: 2px;
+            background: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .highlight {
+            color: white;
+            font-weight: 600;
+        }
+
+        .code {
+            background: #1e293b;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-family: monospace;
+            color: #60a5fa;
+            border: 1px solid #334155;
+            font-size: 0.9em;
+        }
+
+        .credentials {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: monospace;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            color: #e2e8f0;
+        }
+
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            text-decoration: none;
+            padding: 1.2rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+            width: 100%;
+            margin-top: 2.5rem;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 1.5rem;
+            }
+
+            .testing-section {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Telegram-бот "Мебельный Завод"</h1>
+        <p class="subtitle">Дипломный проект: Автоматизированная система продаж и управления складом</p>
+
+        <div class="grid">
+            <div class="card">
+                <h3>💎 Главные достоинства</h3>
+                <ul class="features-list">
+                    <li><b>Архитектура:</b> Разделение на Aiogram 3 (Бот) + FastAPI (API) + React (Frontend).</li>
+                    <li><b>Mini App Интеграция:</b> Полноценный интернет-магазин внутри Telegram (без перехода в
+                        браузер, адаптивный UI).</li>
+                    <li><b>Ролевая модель:</b> Строгое разграничение прав (Клиент, Менеджер, Консультант, Админ).
+                        Индивидуальные клавиатуры.</li>
+                    <li><b>Складской учёт:</b> Контроль остатков, автоматический возврат товара на склад при отмене
+                        заказа.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>🛡 Безопасность и Функционал</h3>
+                <ul class="features-list">
+                    <li><b>Отказоустойчивость:</b> FSM-стейты, система Throttling (анти-спам), защита от SQL Injection,
+                        экранирование.</li>
+                    <li><b>Документооборот:</b> Автоматическая генерация HTML-накладных с реквизитами для печати.</li>
+                    <li><b>Экспорт данных:</b> Мгновенная выгрузка всей аналитики в формате CSV (совместимо с Excel).
+                    </li>
+                    <li><b>Развертывание:</b> Упаковано в Docker, проект запущен на облачном сервере Amvera Cloud 24/7.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="testing-section">
+            <h2>🧪 Детальный план тестирования проекта</h2>
+
+            <div class="scenario">
+                <div class="scenario-title" style="color: var(--accent);">🛒 Сценарий 1: Клиентский путь (Frontend &
+                    Заказы)</div>
+                <ol class="step-list">
+                    <li>Отправьте боту команду <span class="code">/start</span>. Пройдите быструю регистрацию (введите
+                        ФИО и нажмите «Отправить контакт»).</li>
+                    <li>В главном меню нажмите кнопку <span class="highlight">«🛍 Открыть каталог»</span>. Откроется
+                        Telegram Web App.</li>
+                    <li>Оцените интерфейс: выберите категорию, просмотрите фото товаров, добавьте несколько товаров в
+                        корзину.</li>
+                    <li>Перейдите в корзину внутри Web App, заполните адрес доставки и нажмите <b>«Оформить заказ»</b>.
+                    </li>
+                    <li>Вернитесь в чат с ботом. Бот пришлёт сформированный чек заказа. Нажмите кнопку <span
+                            class="highlight">«Оплатить»</span> (симуляция оплаты).</li>
+                    <li>В главном меню бота нажмите <span class="highlight">«📦 Мои заказы»</span>. Убедитесь, что
+                        статус заказа изменился на «Оплачено». Обратите внимание, что отменить оплаченный заказ уже
+                        нельзя.</li>
+                    <li>Сделайте ещё один тестовый заказ, не оплачивайте его. Зайдите в «Мои заказы» и нажмите
+                        <b>«Отменить заказ»</b>. Убедитесь, что товары вернулись на склад.
+                    </li>
+                </ol>
+            </div>
+
+            <div class="scenario scenario-manager">
+                <div class="scenario-title" style="color: #f59e0b;">💼 Сценарий 2: Работа Менеджера (Обработка заказов)
+                </div>
+                <ol class="step-list">
+                    <li>Отправьте команду <span class="code">/staff</span> для служебного входа. Выберите роль
+                        <b>«Менеджер»</b>.
+                    </li>
+                    <li>
+                        Введите учетные данные менеджера:
+                        <div class="credentials">
+                            Логин: <span class="code">manager</span><br>
+                            Пароль: <span class="code">manager123</span>
+                        </div>
+                    </li>
+                    <li>После успешного входа меню изменится. Нажмите кнопку <span class="highlight">«📋 Заказы»</span>.
+                    </li>
+                    <li>Используйте фильтры (например, "Оплаченные") чтобы найти заказ, оформленный в Сценарии 1.
+                        Протестируйте работу <b>пагинации</b>.</li>
+                    <li>Откройте заказ и измените его статус на <span class="highlight">«В обработке»</span> или <span
+                            class="highlight">«Готов к отгрузке»</span>. Обратите внимание — клиент автоматически
+                        получит уведомление об изменении статуса!</li>
+                    <li>Нажмите кнопку <span class="highlight">«Сформировать накладную»</span>. Скачайте сгенерированный
+                        HTML-файл, откройте его в браузере и оцените формат товарной накладной.</li>
+                    <li>Для завершения сессии введите <span class="code">/logout</span>.</li>
+                </ol>
+            </div>
+
+            <div class="scenario scenario-admin">
+                <div class="scenario-title" style="color: #ec4899;">👑 Сценарий 3: Работа Администратора (Склад и
+                    Аналитика)</div>
+                <ol class="step-list">
+                    <li>Отправьте <span class="code">/staff</span>, выберите <b>«Администратор»</b>. Введите логин <span
+                            class="code">admin</span> и пароль <span class="code">admin123</span>.</li>
+                    <li>Нажмите <span class="highlight">«🏭 Склад (Каталог)»</span>. Выберите любую категорию и нажмите
+                        <b>«➕ Добавить товар»</b>.
+                    </li>
+                    <li>Пройдите процесс создания товара через FSM-состояния (бот пошагово запросит имя, описание, цену,
+                        остаток на складе и фотографию).</li>
+                    <li>Найдите созданный товар в каталоге. Оцените функционал <b>inline-редактирования</b>: попробуйте
+                        изменить цену, описание или добавить дополнительные фото в карусель.</li>
+                    <li>Вернитесь в меню и нажмите <span class="highlight">«📊 Статистика / Финансы»</span>. Оцените
+                        дашборд.</li>
+                    <li>Нажмите <b>«📥 Экспорт в CSV»</b>. Бот сгенерирует консолидированный отчет. Скачайте файл и
+                        проверьте структуру данных.</li>
+                    <li>Протестируйте <b>«📢 Общую рассылку»</b>: введите текст и отправьте его всем зарегистрированным
+                        пользователям (система имеет защиту от спама и лимиты).</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- УКАЖИТЕ ЗДЕСЬ ССЫЛКУ НА ВАШЕГО БОТА -->
+        <a href="https://t.me/DiplomOAOAOAO_BOT" target="_blank" class="button">🚀 Перейти к тестированию бота</a>
+    </div>
+
+</body>
+
+</html>
