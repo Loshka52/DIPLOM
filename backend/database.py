@@ -9,10 +9,7 @@ import re
 import os
 import logging
 from datetime import datetime, timedelta
-if os.getenv('AMVERA'):
-    DB_NAME = '/data/furniture_bot.db'
-else:
-    DB_NAME = 'furniture_bot.db'
+DB_NAME = os.getenv('DB_PATH', 'furniture_bot.db')
 logger = logging.getLogger('[DATABASE]')
 
 

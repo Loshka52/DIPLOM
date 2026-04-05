@@ -49,15 +49,14 @@ from keyboards import (
 # КОНФИГУРАЦИЯ
 # ==========================================
 
-TOKEN = os.getenv('BOT_TOKEN', '8144160800:AAH6UuM2oDzeZ_0yrcKKQ-8PgvExStZ8q5g')
+TOKEN = os.getenv('BOT_TOKEN')
+if not TOKEN:
+    raise ValueError("❌ Переменная BOT_TOKEN не задана! Укажите токен бота через переменную окружения.")
 
-if os.getenv('AMVERA'):
-    IMAGES_DIR = '/data/images'
-else:
-    IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'images')
+IMAGES_DIR = os.getenv('IMAGES_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'images'))
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
-WEBAPP_URL = os.getenv('WEBAPP_URL', 'https://dry-cats-ask.loca.lt')
+WEBAPP_URL = os.getenv('WEBAPP_URL', '')
 
 
 # ==========================================

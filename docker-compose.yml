@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  mebel-bot:
+    build: .
+    container_name: mebel-bot
+    restart: always
+    env_file: .env
+    ports:
+      - "80:80"
+    volumes:
+      - bot-data:/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - IMAGES_DIR=/data/images
+      - DB_PATH=/data/furniture_bot.db
+
+volumes:
+  bot-data:

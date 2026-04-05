@@ -20,9 +20,13 @@ COPY webapp/dist/ ./webapp/dist/
 # Конфиги для запуска
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/app.conf
 
-# Создаём папку для картинок
+# Создаём папку для данных
 RUN mkdir -p /data/images
+
+# Переменные окружения (пути по умолчанию для Docker/Amvera)
 ENV PYTHONUNBUFFERED=1
+ENV DB_PATH=/data/furniture_bot.db
+ENV IMAGES_DIR=/data/images
 
 EXPOSE 80
 

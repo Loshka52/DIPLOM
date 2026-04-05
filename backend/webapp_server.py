@@ -41,16 +41,13 @@ except ImportError as e:
 # КОНФИГУРАЦИЯ
 # ==========================================
 
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8144160800:AAH6UuM2oDzeZ_0yrcKKQ-8PgvExStZ8q5g')
+BOT_TOKEN = os.getenv('BOT_TOKEN', '')
 
 # Пути
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 
-if os.getenv('AMVERA'):
-    IMAGES_DIR = '/data/images'
-else:
-    IMAGES_DIR = os.path.join(BASE_DIR, 'static', 'images')
+IMAGES_DIR = os.getenv('IMAGES_DIR', os.path.join(BASE_DIR, 'static', 'images'))
 
 # --- АВТООПРЕДЕЛЕНИЕ ПАПКИ dist/ ---
 POSSIBLE_DIST_PATHS = [
