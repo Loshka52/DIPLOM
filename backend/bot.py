@@ -217,6 +217,64 @@ async def global_cancel(message: types.Message, state: FSMContext):
 
 
 # ==========================================
+# КОМАНДА /help
+# ==========================================
+
+@dp.message(Command("help"))
+async def cmd_help(message: types.Message):
+    role = get_user_role(message.from_user.id)
+    text = (
+        "📖 *Справка — Мебельный Завод*\n\n"
+        "🤖 *Основные команды:*\n"
+        "  /start — Главное меню\n"
+        "  /help — Эта справка\n"
+        "  /staff — Вход для сотрудников\n"
+        "  /logout — Выйти из аккаунта\n\n"
+        "🛍 *Для покупателей:*\n"
+        "  • Откройте каталог через кнопку меню\n"
+        "  • Выберите товары и оформите заказ\n"
+        "  • Отслеживайте статус в «📦 Мои заказы»\n\n"
+        "👔 *Для сотрудников:*\n"
+        "  • Используйте /staff для входа\n"
+        "  • Менеджеры: управление заказами\n"
+        "  • Администраторы: каталог + статистика\n\n"
+        "❓ По вопросам: info@mebel-zavod.ru"
+    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_main_kb(role))
+
+
+# ==========================================
+# КОМАНДА /logout
+# ==========================================
+
+@dp.message(Command("logout"))
+async def cmd_logout(message: types.Message, state: FSMContext):
+    await state.clear()
+    user = get_user(message.from_user.id)
+    if not user:
+        await message.answer("Вы не авторизованы. Нажмите /start")
+        return
+
+    old_role = user[4]
+    if old_role in ('admin', 'manager', 'consultant'):
+        set_user_role_and_info(message.from_user.id, 'guest', user[2], None)
+        logger.info(f"[LOGOUT] Сотрудник {user[2]} ({old_role}) вышел из аккаунта")
+        await message.answer(
+            f"🚪 *Вы вышли из аккаунта*\n\n"
+            f"Роль: {old_role} → guest\n"
+            f"Для повторного входа используйте /staff",
+            parse_mode="Markdown",
+            reply_markup=get_main_kb('guest')
+        )
+    else:
+        await message.answer(
+            "ℹ️ Вы вошли как клиент. Выход из аккаунта не требуется.\n"
+            "Нажмите /start для главного меню.",
+            reply_markup=get_main_kb(old_role)
+        )
+
+
+# ==========================================
 # 1. СТАРТ И РЕГИСТРАЦИЯ КЛИЕНТА
 # ==========================================
 
@@ -229,7 +287,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     if user:
         role = user[4]
         await message.answer(
-            f"👋 С возвращением, {user[2]}!",
+            f"👋 С возвращением, {safe_markdown(user[2])}!",
             reply_markup=get_main_kb(role)
         )
     else:
@@ -730,8 +788,11 @@ async def edit_staff_start(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(EditStaff.waiting_new_value)
 async def edit_staff_finish(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введите значение текстом, а не фото/стикер.")
+        return
     data = await state.get_data()
-    value = message.text.strip()
+    value = message.text.strip()[:MAX_NAME_LENGTH]
 
     if data['field'] == 'fullname':
         is_valid, error = validate_fio(value)
@@ -1005,9 +1066,32 @@ async def add_product_no_photo(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query(F.data.startswith("delp_"))
-async def delete_product_handler(callback: types.CallbackQuery):
+async def delete_product_confirm(callback: types.CallbackQuery):
+    """Показывает подтверждение перед удалением товара"""
+    pid = callback.data.split("_")[1]
+    product = get_product_by_id(int(pid))
+    name = product[1] if product else "Неизвестный"
+    await callback.message.edit_text(
+        f"⚠️ *Вы уверены, что хотите удалить товар?*\n\n"
+        f"📦 «{safe_markdown(name)}»\n\n"
+        f"Это действие необратимо!",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"confirmdel_{pid}"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data=f"p_{pid}"),
+            ]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("confirmdel_"))
+async def delete_product_execute(callback: types.CallbackQuery):
+    """Удаляет товар после подтверждения"""
     pid = callback.data.split("_")[1]
     delete_product(pid)
+    logger.info(f"[CATALOG] Товар #{pid} удалён пользователем {callback.from_user.id}")
     await callback.answer("Товар удалён", show_alert=True)
     await callback.message.edit_text("❌ Товар удалён из каталога.")
 
@@ -1761,11 +1845,20 @@ async def broadcast_start(message: types.Message, state: FSMContext):
 @dp.message(Broadcast.text)
 async def broadcast_send(message: types.Message, state: FSMContext):
     try:
+        if not message.text:
+            await message.answer("❌ Отправьте текст рассылки, а не фото/стикер.")
+            return
+
+        broadcast_text = message.text.strip()[:MAX_BROADCAST_LENGTH]
+        if len(broadcast_text) < 3:
+            await message.answer("❌ Текст рассылки слишком короткий. Минимум 3 символа.")
+            return
+
         ids = get_all_users_ids()
         sent = 0
         for uid in ids:
             try:
-                await bot.send_message(uid, f"📢 *Рассылка от Мебельного Завода:*\n\n{message.text}",
+                await bot.send_message(uid, f"📢 *Рассылка от Мебельного Завода:*\n\n{safe_markdown(broadcast_text)}",
                                        parse_mode="Markdown")
                 sent += 1
             except Exception:

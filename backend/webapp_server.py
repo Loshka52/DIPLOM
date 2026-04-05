@@ -126,7 +126,7 @@ async def api_categories():
 @app.get("/api/my-orders")
 async def api_my_orders(user_id: int = 0):
     try:
-        if not user_id:
+        if not user_id or user_id <= 0:
             return JSONResponse(content=[])
         return JSONResponse(content=get_user_orders_api(user_id))
     except Exception as e:
@@ -135,6 +135,10 @@ async def api_my_orders(user_id: int = 0):
 
 @app.get("/api/photo/{file_id}")
 async def proxy_telegram_photo(file_id: str):
+    # Валидация file_id: допускаются только буквы, цифры, -, _
+    import re as _re
+    if not _re.match(r'^[A-Za-z0-9_\-]+$', file_id) or len(file_id) > 200:
+        return Response(content=b"Invalid file_id", status_code=400)
     if BOT_TOKEN == 'YOUR_BOT_TOKEN_HERE':
         return Response(content=b"Bot token not configured", status_code=500)
     if httpx is None:
@@ -198,8 +202,13 @@ if DIST_DIR and os.path.exists(DIST_DIR):
     # Хитрый catch-all роут для React
     @app.get("/{catchall:path}")
     async def serve_spa(catchall: str):
-        # 1. Если запрашивают реальный файл (например favicon.ico) из папки dist
-        file_path = os.path.join(DIST_DIR, catchall)
+        # 1. Защита от Path Traversal
+        file_path = os.path.realpath(os.path.join(DIST_DIR, catchall))
+        dist_real = os.path.realpath(DIST_DIR)
+        if not file_path.startswith(dist_real):
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+
+        # 2. Если запрашивают реальный файл (например favicon.ico) из папки dist
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
 
