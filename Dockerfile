@@ -24,6 +24,6 @@ COPY deploy/supervisord.conf /etc/supervisor/conf.d/app.conf
 RUN mkdir -p /data/images
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8080
+EXPOSE 80
 
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/app.conf"]
