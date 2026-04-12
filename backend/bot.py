@@ -17,7 +17,8 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
-    InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+    InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile,
+    LabeledPrice, PreCheckoutQuery
 )
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -57,6 +58,7 @@ IMAGES_DIR = os.getenv('IMAGES_DIR', os.path.join(os.path.dirname(os.path.abspat
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
 WEBAPP_URL = os.getenv('WEBAPP_URL', '')
+PAYMENT_TOKEN = os.getenv('PAYMENT_TOKEN', '')
 
 
 # ==========================================
@@ -1475,7 +1477,7 @@ async def handle_webapp_order(message: types.Message):
 # ==========================================
 
 @dp.callback_query(F.data.startswith("pay_"))
-async def fake_payment(callback: types.CallbackQuery):
+async def process_payment_click(callback: types.CallbackQuery):
     try:
         if is_throttled(callback.from_user.id):
             await callback.answer("⏳ Подождите...", show_alert=False)
@@ -1489,49 +1491,101 @@ async def fake_payment(callback: types.CallbackQuery):
             return
 
         if order[2] != 'Новый':
-            await callback.answer("Заказ уже оплачен!", show_alert=True)
+            await callback.answer("Заказ уже оплачен или обрабатывается!", show_alert=True)
             return
 
-        update_order_status(order_id, 'Оплачено')
-        logger.info(f"[PAYMENT] ✅ Оплата заказа #{order_id} | Сумма: {order[3]:,.0f}₽")
+        if PAYMENT_TOKEN:
+            # Настоящая тестовая оплата через Telegram API
+            prices = [LabeledPrice(label=f"Заказ #{order_id}", amount=int(order[3] * 100))] # Цена в копейках
+            await bot.send_invoice(
+                chat_id=callback.message.chat.id,
+                title=f"Оплата заказа #{order_id}",
+                description="Оплата готовой мебели и доставки.",
+                payload=f"invoice_{order_id}",
+                provider_token=PAYMENT_TOKEN,
+                currency="RUB",
+                prices=prices,
+                start_parameter="test-payment",
+                provider_data=None,
+                need_name=False,
+                need_phone=False,
+                need_email=False,
+                need_shipping_address=False,
+                is_flexible=False
+            )
+            await callback.answer()
+        else:
+            # Фейковая оплата (заглушка)
+            update_order_status(order_id, 'Оплачено')
+            logger.info(f"[PAYMENT] ✅ ФЕЙК. Оплата заказа #{order_id} | Сумма: {order[3]:,.0f}₽")
 
-        await callback.message.edit_text(
-            f"✅ *Оплата прошла успешно!*\n\n"
-            f"🧾 Заказ #{order_id}\n"
-            f"💰 Сумма: {order[3]:,.0f} ₽\n"
-            f"💳 Способ: Банковская карта (ЮKassa)\n"
-            f"📋 Статус: *Оплачено*\n\n"
-            f"📦 Ваш заказ передан в обработку. Ожидайте уведомления!",
-            parse_mode="Markdown"
-        )
-
-        managers = get_managers_ids()
-        items = get_order_items(order_id)
-        items_text = "\n".join([f"  • {i[3]} × {i[5]} = {i[4] * i[5]:,.0f}₽" for i in items])
-
-        manager_text = (
-            f"🔔 *НОВЫЙ ОПЛАЧЕННЫЙ ЗАКАЗ!*\n\n"
-            f"🧾 Заказ #{order_id}\n"
-            f"👤 {order[4]}\n"
-            f"📱 {order[5]}\n"
-            f"📍 {order[6]}\n\n"
-            f"📦 Товары:\n{items_text}\n\n"
-            f"💰 Сумма: *{order[3]:,.0f} ₽*\n\n"
-            f"⚡ Необходимо сформировать накладную!"
-        )
-        for mid in managers:
-            try:
-                await bot.send_message(
-                    mid, manager_text, parse_mode="Markdown",
-                    reply_markup=order_actions_kb(order_id, 'Оплачено')
-                )
-            except Exception as e:
-                logger.warning(f"[PAYMENT] Уведомление менеджеру {mid} не доставлено: {e}")
-
-        await callback.answer("✅ Оплата успешна!", show_alert=True)
+            await callback.message.edit_text(
+                f"✅ *Оплата прошла успешно!* (Фейк-режим)\n\n"
+                f"🧾 Заказ #{order_id}\n"
+                f"💰 Сумма: {order[3]:,.0f} ₽\n"
+                f"💳 Способ: Тестовая оплата\n"
+                f"📋 Статус: *Оплачено*\n\n"
+                f"📦 Ваш заказ передан в обработку.",
+                parse_mode="Markdown"
+            )
+            await notify_managers_payment(order_id, order)
+            await callback.answer("✅ Оплата успешна!", show_alert=True)
+            
     except Exception as e:
-        logger.error(f"[PAYMENT] Ошибка оплаты: {e}")
+        logger.error(f"[PAYMENT] Ошибка генерации оплаты: {e}")
         await callback.answer("Ошибка обработки оплаты", show_alert=True)
+
+
+@dp.pre_checkout_query()
+async def pre_checkout_process(pre_checkout: PreCheckoutQuery):
+    """Подтверждение готовности принять платеж"""
+    await bot.answer_pre_checkout_query(pre_checkout.id, ok=True)
+
+
+@dp.message(F.successful_payment)
+async def successful_payment_handler(message: types.Message):
+    """Когда телеграм подтверждает оплату картой"""
+    payload = message.successful_payment.invoice_payload
+    order_id = int(payload.split("_")[1])
+    order = get_order(order_id)
+    
+    update_order_status(order_id, 'Оплачено')
+    logger.info(f"[PAYMENT] ✅ РЕАЛЬНАЯ ТЕСТОВАЯ оплата #{order_id}")
+
+    await message.answer(
+        f"✅ *Оплата прошла успешно!*\n\n"
+        f"🧾 Заказ #{order_id}\n"
+        f"💰 Сумма: {message.successful_payment.total_amount / 100:,.0f} ₽\n"
+        f"💳 Способ: {message.successful_payment.provider_payment_charge_id}\n"
+        f"📋 Статус: *Оплачено*\n\n"
+        f"📦 Ваш заказ передан в обработку. Ожидайте уведомления!",
+        parse_mode="Markdown"
+    )
+    await notify_managers_payment(order_id, order)
+
+
+async def notify_managers_payment(order_id: int, order: tuple):
+    managers = get_managers_ids()
+    items = get_order_items(order_id)
+    items_text = "\n".join([f"  • {i[3]} × {i[5]} = {i[4] * i[5]:,.0f}₽" for i in items])
+    manager_text = (
+        f"🔔 *НОВЫЙ ОПЛАЧЕННЫЙ ЗАКАЗ!*\n\n"
+        f"🧾 Заказ #{order_id}\n"
+        f"👤 {order[4]}\n"
+        f"📱 {order[5]}\n"
+        f"📍 {order[6]}\n\n"
+        f"📦 Товары:\n{items_text}\n\n"
+        f"💰 Сумма: *{order[3]:,.0f} ₽*\n\n"
+        f"⚡ Необходимо сформировать накладную!"
+    )
+    for mid in managers:
+        try:
+            await bot.send_message(
+                mid, manager_text, parse_mode="Markdown",
+                reply_markup=order_actions_kb(order_id, 'Оплачено')
+            )
+        except Exception as e:
+            logger.warning(f"[PAYMENT] Уведомление менеджеру {mid} не доставлено: {e}")
 
 
 # ==========================================
