@@ -126,7 +126,7 @@ def order_actions_kb(order_id: int, current_status: str) -> InlineKeyboardMarkup
 def payment_kb(order_id: int) -> InlineKeyboardMarkup:
     """Кнопка фейковой оплаты для клиента"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить картой (ЮKassa)", callback_data=f"pay_{order_id}")],
+        [InlineKeyboardButton(text="💳 Оплатить онлайн", callback_data=f"pay_{order_id}")],
         [InlineKeyboardButton(text="📦 Мои заказы", callback_data="my_orders")]
     ])
 
