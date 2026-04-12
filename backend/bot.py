@@ -1505,13 +1505,7 @@ async def process_payment_click(callback: types.CallbackQuery):
                 provider_token=PAYMENT_TOKEN,
                 currency="RUB",
                 prices=prices,
-                start_parameter="test-payment",
-                provider_data=None,
-                need_name=False,
-                need_phone=False,
-                need_email=False,
-                need_shipping_address=False,
-                is_flexible=False
+                start_parameter="test-payment"
             )
             await callback.answer()
         else:
