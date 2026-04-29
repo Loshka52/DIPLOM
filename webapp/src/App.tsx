@@ -45,6 +45,7 @@ declare global {
         close: () => void;
         sendData: (data: string) => void;
         expand: () => void;
+        initData?: string;
         initDataUnsafe?: {
           user?: {
             id: number;
@@ -449,26 +450,50 @@ function CheckoutForm({
 function Profile({ onBack }: { onBack: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userInfo, setUserInfo] = useState<{ first_name: string; last_name: string; username: string } | null>(null);
 
+  // Пытаемся взять данные из initDataUnsafe (иногда пусто)
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const firstName = tgUser?.first_name || 'Гость';
-  const lastName = tgUser?.last_name || '';
-  const username = tgUser?.username ? `@${tgUser.username}` : '';
+  // initData — подписанная строка, есть всегда когда Mini App открыт из Telegram
+  const initData = window.Telegram?.WebApp?.initData || '';
+
+  const displayUser = userInfo || tgUser;
+  const firstName = displayUser?.first_name || 'Гость';
+  const lastName = displayUser?.last_name || '';
+  const username = displayUser?.username ? `@${displayUser.username}` : '';
   const initials = firstName.charAt(0) + (lastName ? lastName.charAt(0) : '');
 
   useEffect(() => {
+    // Стратегия: если initDataUnsafe.user есть — используем старый GET
+    // Если нет — отправляем initData на сервер для парсинга
     const userId = tgUser?.id;
     if (userId) {
+      // Старый путь — данные уже есть на клиенте
       fetch(`/api/my-orders?user_id=${userId}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
         .then(res => res.json())
         .then(data => { setOrders(data); setLoading(false); })
         .catch(() => setLoading(false));
+    } else if (initData) {
+      // Новый путь — парсим initData на сервере
+      fetch('/api/user-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+        body: JSON.stringify({ initData }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.user) setUserInfo(data.user);
+          if (data.orders) setOrders(data.orders);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [tgUser]);
+  }, []);
 
   const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
+  const isGuest = !displayUser;
 
   const getStatusIcon = (status: string) => {
     const map: Record<string, string> = {
@@ -495,7 +520,7 @@ function Profile({ onBack }: { onBack: () => void }) {
           <div className="relative z-10">
             <h2 className="text-xl font-bold text-brand-800 leading-tight">{firstName} {lastName}</h2>
             {username && <p className="text-sm text-brand-500">{username}</p>}
-            {!tgUser && <p className="text-xs text-orange-500 mt-1">Режим предпросмотра (не Telegram)</p>}
+            {isGuest && !loading && <p className="text-xs text-orange-500 mt-1">Режим предпросмотра (не Telegram)</p>}
           </div>
         </div>
       </div>

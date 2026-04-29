@@ -133,6 +133,52 @@ def api_my_orders(user_id: int = 0):
         logger.error(f"Ошибка /api/my-orders: {e}")
         return JSONResponse(content=[], status_code=200)
 
+
+@app.post("/api/user-info")
+async def api_user_info(request: Request):
+    """
+    Парсит initData из Telegram и возвращает информацию о пользователе + заказы.
+    Это решает проблему пустого initDataUnsafe в некоторых клиентах Telegram.
+    """
+    import json as _json
+    from urllib.parse import parse_qs
+
+    try:
+        body = await request.json()
+        init_data = body.get("initData", "")
+
+        if not init_data:
+            return JSONResponse(content={"user": None, "orders": []})
+
+        # Парсим initData (это URL-encoded строка вида key=val&key=val)
+        parsed = parse_qs(init_data)
+
+        user_data = None
+        if "user" in parsed:
+            try:
+                user_data = _json.loads(parsed["user"][0])
+            except Exception:
+                pass
+
+        if not user_data or "id" not in user_data:
+            return JSONResponse(content={"user": None, "orders": []})
+
+        user_id = int(user_data["id"])
+        orders = get_user_orders_api(user_id)
+
+        return JSONResponse(content={
+            "user": {
+                "id": user_id,
+                "first_name": user_data.get("first_name", ""),
+                "last_name": user_data.get("last_name", ""),
+                "username": user_data.get("username", ""),
+            },
+            "orders": orders,
+        })
+    except Exception as e:
+        logger.error(f"Ошибка /api/user-info: {e}")
+        return JSONResponse(content={"user": None, "orders": []}, status_code=200)
+
 @app.get("/api/photo/{file_id}")
 async def proxy_telegram_photo(file_id: str):
     # Валидация file_id: допускаются только буквы, цифры, -, _
