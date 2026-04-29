@@ -33,7 +33,7 @@ interface Order {
   items: { name: string; qty: number; price: number }[];
 }
 
-type ViewType = 'catalog' | 'cart' | 'checkout' | 'success' | 'my_orders';
+type ViewType = 'catalog' | 'cart' | 'checkout' | 'success' | 'profile';
 type SortType = 'default' | 'price_asc' | 'price_desc';
 
 // ==================== TELEGRAM WEBAPP TYPES ====================
@@ -172,15 +172,18 @@ function Header({
   onBack,
   showBack,
   title,
-  onMyOrders
+  onProfile
 }: {
   cartCount: number;
   onCartClick: () => void;
   onBack?: () => void;
   showBack: boolean;
   title: string;
-  onMyOrders: () => void;
+  onProfile: () => void;
 }) {
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const initials = tgUser ? (tgUser.first_name[0] + (tgUser.last_name ? tgUser.last_name[0] : '')) : '👤';
+
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-lg border-b border-brand-100 shadow-sm">
       <div className="flex items-center justify-between px-4 py-3">
@@ -192,8 +195,11 @@ function Header({
               </svg>
             </button>
           ) : (
-            <button onClick={onMyOrders} className="text-xs font-bold text-brand-600 bg-brand-100 px-3 py-1 rounded-full">
-              📦 Заказы
+            <button onClick={onProfile} className="text-xs font-bold text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-brand-200 transition-colors active:scale-95">
+              <div className="w-5 h-5 bg-brand-600 text-white rounded-full flex items-center justify-center text-[10px]">
+                {initials}
+              </div>
+              <span>Кабинет</span>
             </button>
           )}
           <div>
@@ -359,7 +365,7 @@ function CheckoutForm({
 
   return (
     <div className="min-h-screen bg-brand-50">
-      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Оформление" onMyOrders={() => {}} />
+      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Оформление" onProfile={() => {}} />
       <div className="p-4 space-y-4 slide-up pb-24">
         {/* Сумма */}
         <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm">
@@ -439,13 +445,19 @@ function CheckoutForm({
   );
 }
 
-// ==================== MY ORDERS ====================
-function MyOrders({ onBack }: { onBack: () => void }) {
+// ==================== PROFILE ====================
+function Profile({ onBack }: { onBack: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const firstName = tgUser?.first_name || 'Гость';
+  const lastName = tgUser?.last_name || '';
+  const username = tgUser?.username ? `@${tgUser.username}` : '';
+  const initials = firstName.charAt(0) + (lastName ? lastName.charAt(0) : '');
+
   useEffect(() => {
-    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    const userId = tgUser?.id;
     if (userId) {
       fetch(`/api/my-orders?user_id=${userId}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
         .then(res => res.json())
@@ -454,7 +466,9 @@ function MyOrders({ onBack }: { onBack: () => void }) {
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [tgUser]);
+
+  const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
   const getStatusIcon = (status: string) => {
     const map: Record<string, string> = {
@@ -465,46 +479,87 @@ function MyOrders({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-brand-50">
-      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Мои заказы" onMyOrders={() => {}} />
-      <div className="p-4 space-y-4">
+    <div className="min-h-screen bg-brand-50 pb-10">
+      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Личный кабинет" onProfile={() => {}} />
+      
+      {/* User Info Card */}
+      <div className="px-4 mt-4 slide-up">
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-brand-100 flex items-center gap-4 relative overflow-hidden">
+          {/* Abstract background blobs */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-100 rounded-full blur-3xl opacity-50"></div>
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
+          
+          <div className="relative z-10 min-w-[4rem] w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-700 text-white rounded-full flex items-center justify-center text-2xl font-bold shadow-lg shadow-brand-200">
+            {initials || '👤'}
+          </div>
+          <div className="relative z-10">
+            <h2 className="text-xl font-bold text-brand-800 leading-tight">{firstName} {lastName}</h2>
+            {username && <p className="text-sm text-brand-500">{username}</p>}
+            {!tgUser && <p className="text-xs text-orange-500 mt-1">Режим предпросмотра (не Telegram)</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="px-4 mt-4 grid grid-cols-2 gap-3 slide-up" style={{animationDelay: '0.1s'}}>
+        <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm flex flex-col justify-center items-center">
+          <div className="text-3xl mb-1">🛒</div>
+          <div className="text-xl font-extrabold text-brand-800">{orders.length}</div>
+          <div className="text-xs font-semibold text-brand-500 uppercase">Всего заказов</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm flex flex-col justify-center items-center">
+          <div className="text-3xl mb-1">💳</div>
+          <div className="text-xl font-extrabold text-brand-800">{totalSpent.toLocaleString()} ₽</div>
+          <div className="text-xs font-semibold text-brand-500 uppercase">Сумма покупок</div>
+        </div>
+      </div>
+
+      {/* Orders List */}
+      <div className="px-4 mt-6 slide-up" style={{animationDelay: '0.2s'}}>
+        <h3 className="text-lg font-bold text-brand-800 mb-3 flex items-center gap-2">
+          <span>📦 Мои заказы</span>
+        </h3>
+        
         {loading ? (
           <div className="text-center py-10">
             <div className="inline-block w-8 h-8 border-3 border-brand-300 border-t-brand-700 rounded-full animate-spin"></div>
-            <p className="text-brand-400 mt-3">Загрузка...</p>
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-16 text-brand-400">
-            <div className="text-5xl mb-4">📦</div>
-            <p className="font-medium">История заказов пуста</p>
-            <p className="text-sm mt-1">Откройте каталог и выберите товары!</p>
+          <div className="text-center py-10 bg-white rounded-2xl border border-brand-100">
+            <div className="text-4xl mb-2 text-brand-200">📭</div>
+            <p className="font-medium text-brand-500">У вас пока нет заказов</p>
+            <button onClick={onBack} className="mt-4 text-brand-600 font-bold bg-brand-50 px-4 py-2 rounded-xl border border-brand-100">
+              Перейти в каталог
+            </button>
           </div>
         ) : (
-          orders.map(order => (
-            <div key={order.id} className="bg-white p-4 rounded-2xl border border-brand-100 shadow-sm slide-up">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="font-bold text-brand-800">Заказ #{order.id}</div>
-                  <div className="text-xs text-brand-400">{order.date}</div>
-                </div>
-                <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-brand-100 text-brand-700 uppercase">
-                  {getStatusIcon(order.status)} {order.status}
-                </div>
-              </div>
-              <div className="space-y-1 mb-3">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm text-brand-600">
-                    <span>{item.name} <span className="text-brand-400">×{item.qty}</span></span>
-                    <span>{(item.price * item.qty).toLocaleString()} ₽</span>
+          <div className="space-y-3">
+            {orders.map(order => (
+              <div key={order.id} className="bg-white p-4 rounded-2xl border border-brand-100 shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="font-bold text-brand-800">Заказ #{order.id}</div>
+                    <div className="text-xs text-brand-400">{order.date}</div>
                   </div>
-                ))}
+                  <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-brand-50 border border-brand-100 text-brand-700 uppercase">
+                    {getStatusIcon(order.status)} {order.status}
+                  </div>
+                </div>
+                <div className="space-y-1.5 mb-3">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-brand-600 line-clamp-1 pr-2">{item.name} <span className="text-brand-400">×{item.qty}</span></span>
+                      <span className="font-medium text-brand-800 whitespace-nowrap">{(item.price * item.qty).toLocaleString()} ₽</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-brand-100 pt-3 flex justify-between items-center font-bold">
+                  <span className="text-brand-500 text-sm">Итого:</span>
+                  <span className="text-brand-800 text-base">{order.total.toLocaleString()} ₽</span>
+                </div>
               </div>
-              <div className="border-t border-brand-100 pt-3 flex justify-between font-bold text-brand-800">
-                <span>Итого:</span>
-                <span>{order.total.toLocaleString()} ₽</span>
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -607,7 +662,7 @@ export function App() {
 
   // --- Routing ---
   if (view === 'checkout') return <CheckoutForm cart={cart} onBack={() => setView('catalog')} onSubmit={handleOrderSubmit} />;
-  if (view === 'my_orders') return <MyOrders onBack={() => setView('catalog')} />;
+  if (view === 'profile') return <Profile onBack={() => setView('catalog')} />;
 
   // Фильтрация по категории
   let filtered = activeCategory === 'Все' ? products : products.filter(p => p.category === activeCategory);
@@ -642,7 +697,7 @@ export function App() {
         onCartClick={() => setView('checkout')}
         showBack={false}
         title="Каталог"
-        onMyOrders={() => setView('my_orders')}
+        onProfile={() => setView('profile')}
       />
 
       {/* Поиск */}
