@@ -32,7 +32,7 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from database import create_db, seed_initial_data, get_all_products, get_categories, get_user_orders_api
+    from database import create_db, seed_initial_data, get_all_products, get_categories, get_user_orders_api, get_user_profile_api
 except ImportError as e:
     logger.error(f"❌ Ошибка импорта database.py: {e}")
     sys.exit(1)
@@ -133,7 +133,6 @@ def api_my_orders(user_id: int = 0):
         logger.error(f"Ошибка /api/my-orders: {e}")
         return JSONResponse(content=[], status_code=200)
 
-
 @app.post("/api/user-info")
 async def api_user_info(request: Request):
     """
@@ -178,6 +177,19 @@ async def api_user_info(request: Request):
     except Exception as e:
         logger.error(f"Ошибка /api/user-info: {e}")
         return JSONResponse(content={"user": None, "orders": []}, status_code=200)
+
+@app.get("/api/profile")
+def api_profile(user_id: int = 0):
+    try:
+        if not user_id or user_id <= 0:
+            return JSONResponse(content={"error": "user_id required"}, status_code=400)
+        profile = get_user_profile_api(user_id)
+        if not profile:
+            return JSONResponse(content={"error": "User not found"}, status_code=404)
+        return JSONResponse(content=profile)
+    except Exception as e:
+        logger.error(f"Ошибка /api/profile: {e}")
+        return JSONResponse(content={"error": "Internal error"}, status_code=500)
 
 @app.get("/api/photo/{file_id}")
 async def proxy_telegram_photo(file_id: str):

@@ -33,7 +33,22 @@ interface Order {
   items: { name: string; qty: number; price: number }[];
 }
 
-type ViewType = 'catalog' | 'cart' | 'checkout' | 'success' | 'profile';
+interface UserProfile {
+  user_id: number;
+  username: string | null;
+  full_name: string;
+  phone: string;
+  role: string;
+  registered_at: string | null;
+  stats: {
+    orders_count: number;
+    total_spent: number;
+    by_status: Record<string, number>;
+  };
+  last_order: { id: number; status: string; total: number; date: string } | null;
+}
+
+type ViewType = 'catalog' | 'cart' | 'checkout' | 'success' | 'my_orders' | 'profile';
 type SortType = 'default' | 'price_asc' | 'price_desc';
 
 // ==================== TELEGRAM WEBAPP TYPES ====================
@@ -45,7 +60,6 @@ declare global {
         close: () => void;
         sendData: (data: string) => void;
         expand: () => void;
-        initData?: string;
         initDataUnsafe?: {
           user?: {
             id: number;
@@ -182,9 +196,6 @@ function Header({
   title: string;
   onProfile: () => void;
 }) {
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const initials = tgUser ? (tgUser.first_name[0] + (tgUser.last_name ? tgUser.last_name[0] : '')) : '👤';
-
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-lg border-b border-brand-100 shadow-sm">
       <div className="flex items-center justify-between px-4 py-3">
@@ -196,11 +207,8 @@ function Header({
               </svg>
             </button>
           ) : (
-            <button onClick={onProfile} className="text-xs font-bold text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-brand-200 transition-colors active:scale-95">
-              <div className="w-5 h-5 bg-brand-600 text-white rounded-full flex items-center justify-center text-[10px]">
-                {initials}
-              </div>
-              <span>Кабинет</span>
+            <button onClick={onProfile} className="text-xs font-bold text-brand-600 bg-brand-100 px-3 py-1 rounded-full">
+              👤 Профиль
             </button>
           )}
           <div>
@@ -446,54 +454,222 @@ function CheckoutForm({
   );
 }
 
-// ==================== PROFILE ====================
-function Profile({ onBack }: { onBack: () => void }) {
+// ==================== PROFILE (ЛИЧНЫЙ КАБИНЕТ) ====================
+function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () => void }) {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userInfo, setUserInfo] = useState<{ first_name: string; last_name: string; username: string } | null>(null);
-
-  // Пытаемся взять данные из initDataUnsafe (иногда пусто)
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  // initData — подписанная строка, есть всегда когда Mini App открыт из Telegram
-  const initData = window.Telegram?.WebApp?.initData || '';
-
-  const displayUser = userInfo || tgUser;
-  const firstName = displayUser?.first_name || 'Гость';
-  const lastName = displayUser?.last_name || '';
-  const username = displayUser?.username ? `@${displayUser.username}` : '';
-  const initials = firstName.charAt(0) + (lastName ? lastName.charAt(0) : '');
 
   useEffect(() => {
-    // Стратегия: если initDataUnsafe.user есть — используем старый GET
-    // Если нет — отправляем initData на сервер для парсинга
-    const userId = tgUser?.id;
+    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (!userId) { setLoading(false); return; }
+
+    const headers = { 'Bypass-Tunnel-Reminder': 'true' };
+    Promise.all([
+      fetch(`/api/profile?user_id=${userId}`, { headers }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/my-orders?user_id=${userId}`, { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([prof, ord]) => {
+      setProfile(prof);
+      setOrders(ord || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const roleMap: Record<string, string> = {
+    admin: '👑 Директор', manager: '👔 Менеджер',
+    consultant: '🎧 Консультант', client: '👤 Клиент', guest: '🔓 Гость',
+  };
+  const statusIcon: Record<string, string> = {
+    'Новый': '🆕', 'Оплачено': '💰', 'В обработке': '⚙️',
+    'Готов к отгрузке': '📦', 'Отгружен': '🚛', 'Отменён': '❌',
+  };
+  const statusColor: Record<string, string> = {
+    'Новый': 'bg-blue-100 text-blue-700', 'Оплачено': 'bg-emerald-100 text-emerald-700',
+    'В обработке': 'bg-amber-100 text-amber-700', 'Готов к отгрузке': 'bg-purple-100 text-purple-700',
+    'Отгружен': 'bg-green-100 text-green-800', 'Отменён': 'bg-red-100 text-red-700',
+  };
+
+  const initials = profile?.full_name
+    ? profile.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+    : (tgUser?.first_name?.[0] || '?');
+
+  const formatDate = (d: string | null) => {
+    if (!d) return '—';
+    try {
+      const dt = new Date(d.replace(' ', 'T'));
+      return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch { return d; }
+  };
+
+  return (
+    <div className="min-h-screen bg-brand-50">
+      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Личный кабинет" onProfile={() => {}} />
+
+      {loading ? (
+        <div className="text-center py-20">
+          <div className="inline-block w-10 h-10 border-3 border-brand-300 border-t-brand-700 rounded-full animate-spin"></div>
+          <p className="text-brand-400 mt-4 font-medium">Загрузка профиля...</p>
+        </div>
+      ) : (
+        <div className="p-4 space-y-4 slide-up pb-8">
+          {/* === Карточка профиля === */}
+          <div className="profile-hero relative overflow-hidden rounded-3xl p-5 text-white shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-600 to-brand-800 -z-0"></div>
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full -z-0"></div>
+            <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-white/5 rounded-full -z-0"></div>
+
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl font-bold text-white shadow-inner flex-shrink-0 border border-white/10">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold truncate">{profile?.full_name || tgUser?.first_name || 'Пользователь'}</h2>
+                {profile?.username && <p className="text-sm text-white/70 truncate">@{profile.username}</p>}
+                <div className="mt-1 inline-block bg-white/15 backdrop-blur-sm text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                  {roleMap[profile?.role || 'guest'] || profile?.role}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* === Контакты === */}
+          <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider">Контактные данные</h3>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-base flex-shrink-0">📱</div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-brand-400">Телефон</p>
+                <p className="text-sm font-semibold text-brand-800 truncate">{profile?.phone || 'Не указан'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-base flex-shrink-0">💬</div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-brand-400">Telegram</p>
+                <p className="text-sm font-semibold text-brand-800 truncate">{profile?.username ? `@${profile.username}` : 'Не указан'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-base flex-shrink-0">🆔</div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-brand-400">ID пользователя</p>
+                <p className="text-sm font-semibold text-brand-800">{profile?.user_id || tgUser?.id || '—'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center text-base flex-shrink-0">📅</div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-brand-400">Дата регистрации</p>
+                <p className="text-sm font-semibold text-brand-800">{formatDate(profile?.registered_at || null)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* === Статистика === */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm text-center">
+              <p className="text-2xl font-extrabold text-brand-700">{profile?.stats?.orders_count || 0}</p>
+              <p className="text-[11px] text-brand-400 font-medium mt-1">Заказов</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm text-center">
+              <p className="text-2xl font-extrabold text-emerald-600">{(profile?.stats?.total_spent || 0).toLocaleString()} ₽</p>
+              <p className="text-[11px] text-brand-400 font-medium mt-1">Потрачено</p>
+            </div>
+          </div>
+
+          {/* === Статусы заказов === */}
+          {profile?.stats?.by_status && Object.keys(profile.stats.by_status).length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm">
+              <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider mb-3">Заказы по статусам</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(profile.stats.by_status).map(([status, count]) => (
+                  <span key={status} className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl ${statusColor[status] || 'bg-gray-100 text-gray-700'}`}>
+                    {statusIcon[status] || '❓'} {status}: {count}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* === Последний заказ === */}
+          {profile?.last_order && (
+            <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm">
+              <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider mb-3">Последний заказ</h3>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-bold text-brand-800">Заказ #{profile.last_order.id}</p>
+                  <p className="text-xs text-brand-400 mt-0.5">{formatDate(profile.last_order.date)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-brand-700">{profile.last_order.total.toLocaleString()} ₽</p>
+                  <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${statusColor[profile.last_order.status] || 'bg-gray-100 text-gray-700'}`}>
+                    {statusIcon[profile.last_order.status] || '❓'} {profile.last_order.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* === Последние 3 заказа === */}
+          {orders.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider">История заказов</h3>
+                <button onClick={onMyOrders} className="text-xs font-bold text-brand-600 hover:text-brand-800 transition-colors">
+                  Все заказы →
+                </button>
+              </div>
+              <div className="space-y-3">
+                {orders.slice(0, 3).map(order => (
+                  <div key={order.id} className="flex justify-between items-center py-2 border-b border-brand-50 last:border-0">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-800">#{order.id}</p>
+                      <p className="text-[11px] text-brand-400">{order.items.length} товар(ов)</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-brand-700">{order.total.toLocaleString()} ₽</p>
+                      <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColor[order.status] || 'bg-gray-100 text-gray-700'}`}>
+                        {statusIcon[order.status]} {order.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* === Кнопки навигации === */}
+          <div className="space-y-2 pt-2">
+            <button onClick={onMyOrders} className="w-full bg-brand-100 hover:bg-brand-200 text-brand-700 font-bold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2">
+              📦 Все мои заказы
+            </button>
+            <button onClick={onBack} className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-md">
+              🛍 Перейти в каталог
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== MY ORDERS ====================
+function MyOrders({ onBack }: { onBack: () => void }) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
     if (userId) {
-      // Старый путь — данные уже есть на клиенте
       fetch(`/api/my-orders?user_id=${userId}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
         .then(res => res.json())
         .then(data => { setOrders(data); setLoading(false); })
-        .catch(() => setLoading(false));
-    } else if (initData) {
-      // Новый путь — парсим initData на сервере
-      fetch('/api/user-info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
-        body: JSON.stringify({ initData }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.user) setUserInfo(data.user);
-          if (data.orders) setOrders(data.orders);
-          setLoading(false);
-        })
         .catch(() => setLoading(false));
     } else {
       setLoading(false);
     }
   }, []);
-
-  const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
-  const isGuest = !displayUser;
 
   const getStatusIcon = (status: string) => {
     const map: Record<string, string> = {
@@ -504,87 +680,46 @@ function Profile({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-brand-50 pb-10">
-      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Личный кабинет" onProfile={() => {}} />
-      
-      {/* User Info Card */}
-      <div className="px-4 mt-4 slide-up">
-        <div className="bg-white rounded-3xl p-5 shadow-sm border border-brand-100 flex items-center gap-4 relative overflow-hidden">
-          {/* Abstract background blobs */}
-          <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-100 rounded-full blur-3xl opacity-50"></div>
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
-          
-          <div className="relative z-10 min-w-[4rem] w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-700 text-white rounded-full flex items-center justify-center text-2xl font-bold shadow-lg shadow-brand-200">
-            {initials || '👤'}
-          </div>
-          <div className="relative z-10">
-            <h2 className="text-xl font-bold text-brand-800 leading-tight">{firstName} {lastName}</h2>
-            {username && <p className="text-sm text-brand-500">{username}</p>}
-            {isGuest && !loading && <p className="text-xs text-orange-500 mt-1">Режим предпросмотра (не Telegram)</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="px-4 mt-4 grid grid-cols-2 gap-3 slide-up" style={{animationDelay: '0.1s'}}>
-        <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm flex flex-col justify-center items-center">
-          <div className="text-3xl mb-1">🛒</div>
-          <div className="text-xl font-extrabold text-brand-800">{orders.length}</div>
-          <div className="text-xs font-semibold text-brand-500 uppercase">Всего заказов</div>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-brand-100 shadow-sm flex flex-col justify-center items-center">
-          <div className="text-3xl mb-1">💳</div>
-          <div className="text-xl font-extrabold text-brand-800">{totalSpent.toLocaleString()} ₽</div>
-          <div className="text-xs font-semibold text-brand-500 uppercase">Сумма покупок</div>
-        </div>
-      </div>
-
-      {/* Orders List */}
-      <div className="px-4 mt-6 slide-up" style={{animationDelay: '0.2s'}}>
-        <h3 className="text-lg font-bold text-brand-800 mb-3 flex items-center gap-2">
-          <span>📦 Мои заказы</span>
-        </h3>
-        
+    <div className="min-h-screen bg-brand-50">
+      <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Мои заказы" onProfile={() => {}} />
+      <div className="p-4 space-y-4">
         {loading ? (
           <div className="text-center py-10">
             <div className="inline-block w-8 h-8 border-3 border-brand-300 border-t-brand-700 rounded-full animate-spin"></div>
+            <p className="text-brand-400 mt-3">Загрузка...</p>
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-10 bg-white rounded-2xl border border-brand-100">
-            <div className="text-4xl mb-2 text-brand-200">📭</div>
-            <p className="font-medium text-brand-500">У вас пока нет заказов</p>
-            <button onClick={onBack} className="mt-4 text-brand-600 font-bold bg-brand-50 px-4 py-2 rounded-xl border border-brand-100">
-              Перейти в каталог
-            </button>
+          <div className="text-center py-16 text-brand-400">
+            <div className="text-5xl mb-4">📦</div>
+            <p className="font-medium">История заказов пуста</p>
+            <p className="text-sm mt-1">Откройте каталог и выберите товары!</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {orders.map(order => (
-              <div key={order.id} className="bg-white p-4 rounded-2xl border border-brand-100 shadow-sm">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <div className="font-bold text-brand-800">Заказ #{order.id}</div>
-                    <div className="text-xs text-brand-400">{order.date}</div>
-                  </div>
-                  <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-brand-50 border border-brand-100 text-brand-700 uppercase">
-                    {getStatusIcon(order.status)} {order.status}
-                  </div>
+          orders.map(order => (
+            <div key={order.id} className="bg-white p-4 rounded-2xl border border-brand-100 shadow-sm slide-up">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <div className="font-bold text-brand-800">Заказ #{order.id}</div>
+                  <div className="text-xs text-brand-400">{order.date}</div>
                 </div>
-                <div className="space-y-1.5 mb-3">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span className="text-brand-600 line-clamp-1 pr-2">{item.name} <span className="text-brand-400">×{item.qty}</span></span>
-                      <span className="font-medium text-brand-800 whitespace-nowrap">{(item.price * item.qty).toLocaleString()} ₽</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-brand-100 pt-3 flex justify-between items-center font-bold">
-                  <span className="text-brand-500 text-sm">Итого:</span>
-                  <span className="text-brand-800 text-base">{order.total.toLocaleString()} ₽</span>
+                <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-brand-100 text-brand-700 uppercase">
+                  {getStatusIcon(order.status)} {order.status}
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="space-y-1 mb-3">
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm text-brand-600">
+                    <span>{item.name} <span className="text-brand-400">×{item.qty}</span></span>
+                    <span>{(item.price * item.qty).toLocaleString()} ₽</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-brand-100 pt-3 flex justify-between font-bold text-brand-800">
+                <span>Итого:</span>
+                <span>{order.total.toLocaleString()} ₽</span>
+              </div>
+            </div>
+          ))
         )}
       </div>
     </div>
@@ -687,7 +822,8 @@ export function App() {
 
   // --- Routing ---
   if (view === 'checkout') return <CheckoutForm cart={cart} onBack={() => setView('catalog')} onSubmit={handleOrderSubmit} />;
-  if (view === 'profile') return <Profile onBack={() => setView('catalog')} />;
+  if (view === 'my_orders') return <MyOrders onBack={() => setView('catalog')} />;
+  if (view === 'profile') return <Profile onBack={() => setView('catalog')} onMyOrders={() => setView('my_orders')} />;
 
   // Фильтрация по категории
   let filtered = activeCategory === 'Все' ? products : products.filter(p => p.category === activeCategory);

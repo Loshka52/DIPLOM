@@ -857,6 +857,62 @@ def get_user_orders_api(user_id):
         return []
 
 
+def get_user_profile_api(user_id):
+    """Возвращает профиль пользователя для MiniApp (JSON)"""
+    try:
+        conn = get_conn()
+        user = conn.execute(
+            "SELECT user_id, username, full_name, phone, role, registered_at FROM users WHERE user_id=?",
+            (user_id,)
+        ).fetchone()
+        if not user:
+            conn.close()
+            return None
+
+        # Статистика заказов
+        orders_count = conn.execute(
+            "SELECT COUNT(*) FROM orders WHERE user_id=?", (user_id,)
+        ).fetchone()[0]
+        total_spent = conn.execute(
+            "SELECT COALESCE(SUM(total), 0) FROM orders WHERE user_id=? AND status NOT IN ('Отменён')",
+            (user_id,)
+        ).fetchone()[0]
+        by_status = dict(conn.execute(
+            "SELECT status, COUNT(*) FROM orders WHERE user_id=? GROUP BY status", (user_id,)
+        ).fetchall())
+
+        # Последний заказ
+        last_order = conn.execute(
+            "SELECT id, status, total, created_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 1",
+            (user_id,)
+        ).fetchone()
+
+        conn.close()
+
+        return {
+            'user_id': user[0],
+            'username': user[1],
+            'full_name': user[2],
+            'phone': user[3],
+            'role': user[4],
+            'registered_at': user[5],
+            'stats': {
+                'orders_count': orders_count,
+                'total_spent': total_spent,
+                'by_status': by_status,
+            },
+            'last_order': {
+                'id': last_order[0],
+                'status': last_order[1],
+                'total': last_order[2],
+                'date': last_order[3],
+            } if last_order else None,
+        }
+    except sqlite3.Error as e:
+        logger.error(f"[API] Ошибка получения профиля: {e}")
+        return None
+
+
 def get_all_orders(status=None):
     try:
         conn = get_conn()
