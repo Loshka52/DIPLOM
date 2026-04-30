@@ -461,7 +461,19 @@ function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    let userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (!userId) {
+      try {
+        const initData = window.Telegram?.WebApp?.initData || '';
+        const params = new URLSearchParams(initData);
+        const userStr = params.get('user');
+        if (userStr) {
+          const userObj = JSON.parse(userStr);
+          userId = userObj.id;
+        }
+      } catch (e) {}
+    }
+
     if (!userId) { setLoading(false); return; }
 
     const headers = { 'Bypass-Tunnel-Reminder': 'true' };
@@ -660,7 +672,19 @@ function MyOrders({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    let userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (!userId) {
+      try {
+        const initData = window.Telegram?.WebApp?.initData || '';
+        const params = new URLSearchParams(initData);
+        const userStr = params.get('user');
+        if (userStr) {
+          const userObj = JSON.parse(userStr);
+          userId = userObj.id;
+        }
+      } catch (e) {}
+    }
+
     if (userId) {
       fetch(`/api/my-orders?user_id=${userId}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
         .then(res => res.json())
