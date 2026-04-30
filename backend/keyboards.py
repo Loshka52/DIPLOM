@@ -26,8 +26,13 @@ def set_webapp_url(url: str):
 # ГЛАВНЫЕ КЛАВИАТУРЫ ПО РОЛЯМ
 # ==========================================
 
-def get_main_kb(role: str) -> ReplyKeyboardMarkup:
+def get_main_kb(role: str, user_id: int = None) -> ReplyKeyboardMarkup:
     """Главная клавиатура в зависимости от роли"""
+    current_webapp_url = WEBAPP_URL
+    if current_webapp_url and user_id:
+        sep = '&' if '?' in current_webapp_url else '?'
+        current_webapp_url = f"{current_webapp_url}{sep}tg_user_id={user_id}"
+
     if role == 'admin':
         return ReplyKeyboardMarkup(keyboard=[
             [KeyboardButton(text="👥 Управление персоналом"), KeyboardButton(text="🏭 Склад (Каталог)")],
@@ -53,9 +58,9 @@ def get_main_kb(role: str) -> ReplyKeyboardMarkup:
         kb_buttons = [
             [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="📦 Мои заказы")]
         ]
-        if WEBAPP_URL:
+        if current_webapp_url:
             kb_buttons.insert(0, [
-                KeyboardButton(text="🛍 Открыть каталог", web_app=WebAppInfo(url=WEBAPP_URL))
+                KeyboardButton(text="🛍 Открыть каталог", web_app=WebAppInfo(url=current_webapp_url))
             ])
         else:
             kb_buttons.insert(0, [KeyboardButton(text="🛍 Каталог товаров")])
@@ -66,9 +71,9 @@ def get_main_kb(role: str) -> ReplyKeyboardMarkup:
             # НОВОЕ: Быстрая регистрация одной кнопкой (контакт из Telegram)
             [KeyboardButton(text="📱 Быстрая регистрация", request_contact=True)],
         ]
-        if WEBAPP_URL:
+        if current_webapp_url:
             kb_buttons.insert(0, [
-                KeyboardButton(text="🛍 Смотреть Каталог", web_app=WebAppInfo(url=WEBAPP_URL))
+                KeyboardButton(text="🛍 Смотреть Каталог", web_app=WebAppInfo(url=current_webapp_url))
             ])
         else:
             kb_buttons.insert(0, [KeyboardButton(text="🛍 Смотреть Каталог (Гость)")])

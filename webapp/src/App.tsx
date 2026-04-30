@@ -486,6 +486,19 @@ function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () =>
       }
     }
 
+    if (!userId) {
+      try {
+        const queryParams = new URLSearchParams(window.location.search);
+        const tgUserIdStr = queryParams.get('tg_user_id');
+        if (tgUserIdStr) {
+          userId = parseInt(tgUserIdStr, 10);
+          addLog(`Наден tg_user_id в URL: ${userId}`);
+        }
+      } catch (e: any) {
+        addLog(`Ошибка парсинга URL: ${e.message}`);
+      }
+    }
+
     if (!userId) { 
       addLog('ОШИБКА: userId так и не найден. Остановка.');
       setLoading(false); 
@@ -725,6 +738,14 @@ function MyOrders({ onBack }: { onBack: () => void }) {
           const userObj = JSON.parse(userStr);
           userId = userObj.id;
         }
+      } catch (e) {}
+    }
+
+    if (!userId) {
+      try {
+        const queryParams = new URLSearchParams(window.location.search);
+        const tgUserIdStr = queryParams.get('tg_user_id');
+        if (tgUserIdStr) userId = parseInt(tgUserIdStr, 10);
       } catch (e) {}
     }
 

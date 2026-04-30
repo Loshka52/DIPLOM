@@ -290,7 +290,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         role = user[4]
         await message.answer(
             f"👋 С возвращением, {safe_markdown(user[2])}!",
-            reply_markup=get_main_kb(role)
+            reply_markup=get_main_kb(role, user_id=message.from_user.id)
         )
     else:
         role = 'guest'
@@ -299,7 +299,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
             "🏭 *Добро пожаловать на Мебельный Завод!*\n\n"
             "Здесь вы можете заказать мебель напрямую от производителя.\n\n"
             "🛍 Откройте каталог, выберите товары и оформите заказ!",
-            reply_markup=get_main_kb(role),
+            reply_markup=get_main_kb(role, user_id=message.from_user.id),
             parse_mode="Markdown"
         )
 
