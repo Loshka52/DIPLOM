@@ -244,6 +244,12 @@ def create_db():
         except sqlite3.OperationalError:
             pass
 
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN registered_at TEXT DEFAULT (datetime('now', 'localtime'))")
+            logger.info("[MIGRATION] Добавлена колонка registered_at в users")
+        except sqlite3.OperationalError:
+            pass
+
         conn.commit()
         conn.close()
         logger.info("Таблицы БД созданы/проверены (включая product_photos + миграция)")
