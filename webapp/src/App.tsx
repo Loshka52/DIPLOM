@@ -459,32 +459,68 @@ function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () =>
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [debugLog, setDebugLog] = useState<string>('');
 
   useEffect(() => {
+    let log = '';
+    const addLog = (msg: string) => { log += msg + '\n'; setDebugLog(log); };
+
+    addLog('1. Инициализация');
     let userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    addLog(`initDataUnsafe.user.id = ${userId || 'undefined'}`);
+
     if (!userId) {
       try {
         const initData = window.Telegram?.WebApp?.initData || '';
+        addLog(`initData length = ${initData.length}`);
         const params = new URLSearchParams(initData);
         const userStr = params.get('user');
+        addLog(`initData userStr = ${userStr ? 'FOUND' : 'EMPTY'}`);
         if (userStr) {
           const userObj = JSON.parse(userStr);
           userId = userObj.id;
+          addLog(`Распакованный userId = ${userId}`);
         }
-      } catch (e) {}
+      } catch (e: any) {
+        addLog(`Ошибка парсинга initData: ${e.message}`);
+      }
     }
 
-    if (!userId) { setLoading(false); return; }
+    if (!userId) { 
+      addLog('ОШИБКА: userId так и не найден. Остановка.');
+      setLoading(false); 
+      return; 
+    }
 
     const headers = { 'Bypass-Tunnel-Reminder': 'true' };
+    addLog(`2. Запрос к /api/profile?user_id=${userId}`);
+    
     Promise.all([
-      fetch(`/api/profile?user_id=${userId}`, { headers }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/profile?user_id=${userId}`, { headers })
+        .then(async r => {
+          addLog(`Ответ /api/profile status = ${r.status}`);
+          if (!r.ok) {
+            const txt = await r.text();
+            addLog(`ОШИБКА АПИ: ${txt}`);
+            return null;
+          }
+          const data = await r.json();
+          addLog(`Данные профиля получены успешно (id=${data?.user_id})`);
+          return data;
+        })
+        .catch(e => {
+          addLog(`Сетевая ошибка /api/profile: ${e.message}`);
+          return null;
+        }),
       fetch(`/api/my-orders?user_id=${userId}`, { headers }).then(r => r.json()).catch(() => []),
     ]).then(([prof, ord]) => {
       setProfile(prof);
       setOrders(ord || []);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(e => {
+      addLog(`Неизвестная ошибка: ${e.message}`);
+      setLoading(false);
+    });
   }, []);
 
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -517,6 +553,13 @@ function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () =>
   return (
     <div className="min-h-screen bg-brand-50">
       <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Личный кабинет" onProfile={() => {}} />
+
+      {debugLog && (
+        <div className="mx-4 mt-4 bg-red-100 text-red-800 p-3 rounded-xl border border-red-200 shadow-sm overflow-x-auto text-[10px] whitespace-pre-wrap font-mono">
+          <strong>ОТЛАДКА:</strong><br/>
+          {debugLog}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-20">
