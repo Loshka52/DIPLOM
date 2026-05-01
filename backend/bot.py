@@ -215,7 +215,7 @@ class EditProduct(StatesGroup):
 async def global_cancel(message: types.Message, state: FSMContext):
     await state.clear()
     role = get_user_role(message.from_user.id)
-    await message.answer("❌ Действие отменено.", reply_markup=get_main_kb(role))
+    await message.answer("❌ Действие отменено.", reply_markup=get_main_kb(role, user_id=message.from_user.id))
 
 
 # ==========================================
@@ -242,7 +242,7 @@ async def cmd_help(message: types.Message):
         "  • Администраторы: каталог + статистика\n\n"
         "❓ По вопросам: info@mebel-zavod.ru"
     )
-    await message.answer(text, parse_mode="Markdown", reply_markup=get_main_kb(role))
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_main_kb(role, user_id=message.from_user.id))
 
 
 # ==========================================
@@ -266,13 +266,13 @@ async def cmd_logout(message: types.Message, state: FSMContext):
             f"Роль: {old_role} → guest\n"
             f"Для повторного входа используйте /staff",
             parse_mode="Markdown",
-            reply_markup=get_main_kb('guest')
+            reply_markup=get_main_kb('guest', user_id=message.from_user.id)
         )
     else:
         await message.answer(
             "ℹ️ Вы вошли как клиент. Выход из аккаунта не требуется.\n"
             "Нажмите /start для главного меню.",
-            reply_markup=get_main_kb(old_role)
+            reply_markup=get_main_kb(old_role, user_id=message.from_user.id)
         )
 
 
@@ -329,7 +329,7 @@ async def quick_registration(message: types.Message, state: FSMContext):
                 f"✅ Вы уже зарегистрированы как *{user[2]}*!\n\n"
                 f"📱 Телефон: {user[3]}\n\n"
                 f"Используйте меню ниже 👇",
-                reply_markup=get_main_kb('client'),
+                reply_markup=get_main_kb('client', user_id=message.from_user.id),
                 parse_mode="Markdown"
             )
             return
@@ -362,7 +362,7 @@ async def quick_registration(message: types.Message, state: FSMContext):
             f"📱 Телефон: {formatted_phone}\n\n"
             f"Данные взяты из вашего Telegram-профиля.\n"
             f"Нажмите «🛍 Открыть каталог» чтобы выбрать мебель!",
-            reply_markup=get_main_kb('client'),
+            reply_markup=get_main_kb('client', user_id=message.from_user.id),
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -379,7 +379,7 @@ async def guest_login(message: types.Message, state: FSMContext):
             f"✅ Вы уже зарегистрированы как *{user[2]}*!\n\n"
             f"📱 Телефон: {user[3]}\n\n"
             f"Используйте меню ниже 👇",
-            reply_markup=get_main_kb('client'),
+            reply_markup=get_main_kb('client', user_id=message.from_user.id),
             parse_mode="Markdown"
         )
         return
@@ -470,7 +470,7 @@ async def reg_phone(message: types.Message, state: FSMContext):
             f"👋 Добро пожаловать, *{data['name']}*!\n"
             f"📱 Телефон: {formatted_phone}\n\n"
             f"Нажмите «🛍 Открыть каталог» чтобы выбрать мебель!",
-            reply_markup=get_main_kb('client'),
+            reply_markup=get_main_kb('client', user_id=message.from_user.id),
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -529,9 +529,9 @@ async def staff_login_step3(message: types.Message, state: FSMContext):
             text = f"✅ Вход выполнен!\n\nЗдравствуйте, *{full_name}*!"
             if photo_id:
                 await message.answer_photo(photo_id, caption=text,
-                                           reply_markup=get_main_kb(real_role), parse_mode="Markdown")
+                                           reply_markup=get_main_kb(real_role, user_id=message.from_user.id), parse_mode="Markdown")
             else:
-                await message.answer(text, reply_markup=get_main_kb(real_role), parse_mode="Markdown")
+                await message.answer(text, reply_markup=get_main_kb(real_role, user_id=message.from_user.id), parse_mode="Markdown")
         else:
             await message.answer(
                 "⛔ *Неверный логин или пароль.*\n\n"
@@ -581,7 +581,7 @@ async def cmd_profile(message: types.Message):
 async def logout_handler(callback: types.CallbackQuery):
     set_user_role_and_info(callback.from_user.id, 'guest', callback.from_user.full_name, None)
     await callback.message.delete()
-    await callback.message.answer("👋 Вы вышли из аккаунта.", reply_markup=get_main_kb('guest'))
+    await callback.message.answer("👋 Вы вышли из аккаунта.", reply_markup=get_main_kb('guest', user_id=callback.from_user.id))
     logger.info(f"[AUTH] Выход: {callback.from_user.id}")
 
 
@@ -759,7 +759,7 @@ async def add_staff_with_photo(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Сотрудник *{data['full_name']}* создан!\n"
         f"🔑 Логин: `{data['login']}`\n💼 Роль: {data['role']}",
-        parse_mode="Markdown", reply_markup=get_main_kb('admin')
+        parse_mode="Markdown", reply_markup=get_main_kb('admin', user_id=message.from_user.id)
     )
 
 
@@ -771,7 +771,7 @@ async def add_staff_no_photo(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Сотрудник *{data['full_name']}* создан!\n"
         f"🔑 Логин: `{data['login']}`\n💼 Роль: {data['role']}",
-        parse_mode="Markdown", reply_markup=get_main_kb('admin')
+        parse_mode="Markdown", reply_markup=get_main_kb('admin', user_id=message.from_user.id)
     )
 
 
@@ -810,7 +810,7 @@ async def edit_staff_finish(message: types.Message, state: FSMContext):
 
     update_staff_credential(data['login'], db_field, value)
     await state.clear()
-    await message.answer("✅ Данные обновлены!", reply_markup=get_main_kb('admin'))
+    await message.answer("✅ Данные обновлены!", reply_markup=get_main_kb('admin', user_id=message.from_user.id))
 
 
 @dp.callback_query(F.data.startswith("kill_"))
@@ -958,7 +958,7 @@ async def add_category_finish(message: types.Message, state: FSMContext):
         return
     add_category(name)
     await state.clear()
-    await message.answer(f"✅ Категория «{name}» создана!", reply_markup=get_main_kb('admin'))
+    await message.answer(f"✅ Категория «{name}» создана!", reply_markup=get_main_kb('admin', user_id=message.from_user.id))
 
 
 # --- Добавление товара ---
@@ -1051,7 +1051,7 @@ async def add_product_with_photo(message: types.Message, state: FSMContext):
         f"✅ Товар «{data['name']}» добавлен!\n"
         f"💰 Цена: {data['price']:,.0f}₽ | 📦 На складе: {data.get('stock', 10)} шт.\n"
         f"🖼 Фото сохранено: {filename}",
-        reply_markup=get_main_kb('admin')
+        reply_markup=get_main_kb('admin', user_id=message.from_user.id)
     )
 
 
@@ -1063,7 +1063,7 @@ async def add_product_no_photo(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Товар «{data['name']}» добавлен!\n"
         f"💰 Цена: {data['price']:,.0f}₽ | 📦 На складе: {data.get('stock', 10)} шт.",
-        reply_markup=get_main_kb('admin')
+        reply_markup=get_main_kb('admin', user_id=message.from_user.id)
     )
 
 
@@ -1199,15 +1199,15 @@ async def edit_product_finish(message: types.Message, state: FSMContext):
                 f"📦 «{data['product_name']}»\n"
                 f"📝 {field_names.get(field, field)}: `{value}`",
                 parse_mode="Markdown",
-                reply_markup=get_main_kb('admin')
+                reply_markup=get_main_kb('admin', user_id=message.from_user.id)
             )
             logger.info(f"[CATALOG] ✏️ Товар #{pid} обновлён: {field} = {value}")
         else:
-            await message.answer("❌ Ошибка обновления. Попробуйте позже.", reply_markup=get_main_kb('admin'))
+            await message.answer("❌ Ошибка обновления. Попробуйте позже.", reply_markup=get_main_kb('admin', user_id=message.from_user.id))
     except Exception as e:
         logger.error(f"[CATALOG] Ошибка редактирования товара: {e}")
         await state.clear()
-        await message.answer("⚠️ Ошибка. Попробуйте позже.", reply_markup=get_main_kb('admin'))
+        await message.answer("⚠️ Ошибка. Попробуйте позже.", reply_markup=get_main_kb('admin', user_id=message.from_user.id))
 
 
 # ==========================================
@@ -1286,7 +1286,7 @@ async def finish_photo_upload(message: types.Message, state: FSMContext):
         f"Добавлено за сессию: {photos_added} фото\n"
         f"Всего фото у товара: {total_photos}",
         parse_mode="Markdown",
-        reply_markup=get_main_kb('admin')
+        reply_markup=get_main_kb('admin', user_id=message.from_user.id)
     )
     logger.info(f"[PHOTO] Загрузка завершена: товар #{data['product_id']}, добавлено {photos_added}")
 
@@ -1914,11 +1914,11 @@ async def broadcast_send(message: types.Message, state: FSMContext):
         await state.clear()
         logger.info(f"[BROADCAST] Рассылка: {sent}/{len(ids)} доставлено")
         await message.answer(f"✅ Рассылка отправлена *{sent}* из {len(ids)} пользователей.",
-                             reply_markup=get_main_kb('admin'), parse_mode="Markdown")
+                             reply_markup=get_main_kb('admin', user_id=message.from_user.id), parse_mode="Markdown")
     except Exception as e:
         logger.error(f"[BROADCAST] Ошибка рассылки: {e}")
         await state.clear()
-        await message.answer("⚠️ Ошибка рассылки.", reply_markup=get_main_kb('admin'))
+        await message.answer("⚠️ Ошибка рассылки.", reply_markup=get_main_kb('admin', user_id=message.from_user.id))
 
 
 # ==========================================
