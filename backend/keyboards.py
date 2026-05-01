@@ -16,10 +16,7 @@ WEBAPP_URL = ""
 def set_webapp_url(url: str):
     """Установить URL WebApp (вызывается из bot.py)"""
     global WEBAPP_URL
-    import time
-    # Добавляем анти-кэш параметр для обхода жесткого кэширования Telegram
-    sep = '&' if '?' in url else '?'
-    WEBAPP_URL = f"{url}{sep}v={int(time.time())}"
+    WEBAPP_URL = url
 
 
 # ==========================================
