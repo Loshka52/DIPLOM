@@ -567,12 +567,6 @@ function Profile({ onBack, onMyOrders }: { onBack: () => void; onMyOrders: () =>
     <div className="min-h-screen bg-brand-50">
       <Header cartCount={0} onCartClick={() => {}} onBack={onBack} showBack={true} title="Личный кабинет" onProfile={() => {}} />
 
-      {debugLog && (
-        <div className="mx-4 mt-4 bg-red-100 text-red-800 p-3 rounded-xl border border-red-200 shadow-sm overflow-x-auto text-[10px] whitespace-pre-wrap font-mono">
-          <strong>ОТЛАДКА:</strong><br/>
-          {debugLog}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-center py-20">
