@@ -264,6 +264,31 @@ def seed_initial_data():
         conn = get_conn()
         c = conn.cursor()
 
+        legacy_seed_names = (
+            'Диван «Премиум Люкс»',
+            'Диван угловой «Модерн»',
+            'Кровать «Классика»',
+            'Кровать «Лофт»',
+            'Шкаф «Мини»',
+            'Стол письменный «Офис»',
+            'Кресло «Релакс»',
+            'Барный стул «Хай»',
+            'Кухня «Премиум»',
+        )
+        placeholders = ','.join('?' * len(legacy_seed_names))
+        c.execute(
+            f"DELETE FROM product_photos WHERE product_id IN "
+            f"(SELECT id FROM products WHERE name IN ({placeholders}))",
+            legacy_seed_names,
+        )
+        c.execute(
+            f"DELETE FROM products WHERE name IN ({placeholders})",
+            legacy_seed_names,
+        )
+        if c.rowcount:
+            logger.info(f"[MIGRATION] Удалено товаров из устаревшего seed: {c.rowcount}")
+        conn.commit()
+
         c.execute("SELECT COUNT(*) FROM staff_credentials")
         if c.fetchone()[0] > 0:
             conn.close()
