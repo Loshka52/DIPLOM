@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
 
+// Маска телефона РФ: форматирует ввод как +7 (XXX) XXX-XX-XX (бэкенд принимает любой формат)
+function formatPhone(v: string): string {
+  const digits = v.replace(/\D/g, '').replace(/^8/, '7').slice(0, 11);
+  if (!digits) return '';
+  const rest = digits.startsWith('7') ? digits.slice(1) : digits;
+  let r = '+7';
+  if (rest.length) r += ' (' + rest.slice(0, 3);
+  if (rest.length >= 3) r += ') ' + rest.slice(3, 6);
+  if (rest.length >= 6) r += '-' + rest.slice(6, 8);
+  if (rest.length >= 8) r += '-' + rest.slice(8, 10);
+  return r;
+}
+
 // ==================== TYPES ====================
 interface Product {
   id: number;
@@ -412,10 +425,10 @@ function CheckoutForm({
             <label className="block text-xs font-semibold text-brand-500 mb-1.5 ml-1">Телефон *</label>
             <input
               className={inputClass('phone')}
-              placeholder="+79001234567"
+              placeholder="+7 (900) 123-45-67"
               type="tel"
               value={form.phone}
-              onChange={e => { setForm({ ...form, phone: e.target.value }); setErrors({ ...errors, phone: false }); }}
+              onChange={e => { setForm({ ...form, phone: formatPhone(e.target.value) }); setErrors({ ...errors, phone: false }); }}
             />
             {errors.phone && <p className="text-xs text-red-500 mt-1 ml-1">Введите корректный номер телефона</p>}
           </div>
