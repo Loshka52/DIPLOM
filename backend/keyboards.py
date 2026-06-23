@@ -98,6 +98,16 @@ def staff_login_kb() -> InlineKeyboardMarkup:
     ])
 
 
+def test_role_kb() -> InlineKeyboardMarkup:
+    """Демо-режим: выбор роли без пароля (для защиты диплома)"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛍 Клиент — заказать мебель", callback_data="test_role_client")],
+        [InlineKeyboardButton(text="🎧 Консультант", callback_data="test_role_consultant")],
+        [InlineKeyboardButton(text="👔 Менеджер — обработка заказов", callback_data="test_role_manager")],
+        [InlineKeyboardButton(text="👑 Администратор — все функции", callback_data="test_role_admin")],
+    ])
+
+
 def order_actions_kb(order_id: int, current_status: str) -> InlineKeyboardMarkup:
     """Кнопки управления заказом для менеджера"""
     buttons = []

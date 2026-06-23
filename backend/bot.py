@@ -41,7 +41,7 @@ from database import (
     cancel_order, get_all_orders_paginated, get_statistics_csv
 )
 from keyboards import (
-    get_main_kb, cancel_kb, staff_login_kb,
+    get_main_kb, cancel_kb, staff_login_kb, test_role_kb,
     order_actions_kb, payment_kb, profile_kb, orders_filter_kb,
     set_webapp_url
 )
@@ -230,6 +230,7 @@ async def cmd_help(message: types.Message):
         "🤖 *Основные команды:*\n"
         "  /start — Главное меню\n"
         "  /help — Эта справка\n"
+        "  /test — Демо: попробовать любую роль\n"
         "  /staff — Вход для сотрудников\n"
         "  /logout — Выйти из аккаунта\n\n"
         "🛍 *Для покупателей:*\n"
@@ -543,6 +544,48 @@ async def staff_login_step3(message: types.Message, state: FSMContext):
         logger.error(f"[AUTH] Ошибка входа: {e}")
         await message.answer("⚠️ Ошибка авторизации. Попробуйте позже.")
         await state.clear()
+
+
+# ==========================================
+# ДЕМО-РЕЖИМ (/test) — для защиты диплома
+# ==========================================
+
+@dp.message(Command("test"))
+async def cmd_test(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "🧪 *Демо-режим*\n\n"
+        "Выберите роль — система переключится на её права, и вы сможете всё попробовать.\n"
+        "Сменить роль в любой момент: /test",
+        reply_markup=test_role_kb(),
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(F.data.startswith("test_role_"))
+async def test_role_set(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    role = callback.data.replace("test_role_", "")
+    names = {
+        'client': 'Демо-клиент', 'consultant': 'Демо-консультант',
+        'manager': 'Демо-менеджер', 'admin': 'Демо-администратор'
+    }
+    hints = {
+        'client': "Нажмите «🛍 Открыть каталог», выберите мебель и оформите заказ.",
+        'consultant': "Доступны просмотр заказов, склад и помощь клиенту.",
+        'manager': "Откройте «📋 Заказы» — можно менять статусы и формировать накладную ТОРГ-12.",
+        'admin': "Доступно всё: персонал, склад, заказы, статистика и рассылка."
+    }
+    if role not in names:
+        await callback.answer("Неизвестная роль")
+        return
+    set_user_role_and_info(callback.from_user.id, role, names[role], None)
+    await callback.message.answer(
+        f"✅ Вы вошли как *{names[role]}*.\n\n{hints[role]}\n\n_Сменить роль — отправьте_ /test",
+        reply_markup=get_main_kb(role, user_id=callback.from_user.id),
+        parse_mode="Markdown"
+    )
+    await callback.answer("Роль переключена")
 
 
 # ==========================================
